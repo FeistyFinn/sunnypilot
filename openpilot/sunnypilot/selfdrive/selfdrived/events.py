@@ -4,13 +4,15 @@ Copyright (c) 2021-, Haibin Wen, sunnypilot, and a number of other contributors.
 This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
+import math
+
 import openpilot.cereal.messaging as messaging
 from openpilot.cereal import log, custom
 from opendbc.car.structs import car
 from openpilot.common.constants import CV
 from openpilot.sunnypilot.selfdrive.selfdrived.events_base import EventsBase, Priority, ET, Alert, \
   NoEntryAlert, ImmediateDisableAlert, EngagementAlert, NormalPermanentAlert, AlertCallbackType, wrong_car_mode_alert
-from openpilot.sunnypilot.selfdrive.controls.lib.speed_limit import PCM_LONG_REQUIRED_MAX_SET_SPEED, CONFIRM_SPEED_THRESHOLD
+from openpilot.sunnypilot.selfdrive.controls.lib.speed_limit import resolve_pcm_long_required_max
 from openpilot.common.hardware import HARDWARE
 
 AlertSize = log.SelfdriveState.AlertSize
@@ -46,13 +48,14 @@ def speed_limit_pre_active_alert(CP: car.CarParams, CS: car.CarState, sm: messag
 
   speed_limit_final_last = sm['longitudinalPlanSP'].speedLimit.resolver.speedLimitFinalLast
   speed_limit_final_last_conv = round(speed_limit_final_last * speed_conv)
+  has_speed_limit = speed_limit_final_last > 0
   alert_1_str = ""
   alert_size = AlertSize.small
 
   if CP.openpilotLongitudinalControl and CP.pcmCruise:
     # PCM long
-    cst_low, cst_high = PCM_LONG_REQUIRED_MAX_SET_SPEED[metric]
-    pcm_long_required_max = cst_low if speed_limit_final_last_conv < CONFIRM_SPEED_THRESHOLD[metric] else cst_high
+    limit_floor_conv = math.floor(speed_limit_final_last * speed_conv)
+    pcm_long_required_max = resolve_pcm_long_required_max(metric, limit_floor_conv, has_speed_limit)
     pcm_long_required_max_set_speed_conv = round(pcm_long_required_max * speed_conv)
     speed_unit = "km/h" if metric else "mph"
 
