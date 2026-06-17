@@ -162,6 +162,24 @@ def setup_developer_params() -> None:
   Params().put("CarParamsPersistent", CP.to_bytes(), block=True)
 
 
+def setup_tesla_car() -> None:
+  # Pose as a Tesla so the Vehicle settings page renders the Tesla brand settings,
+  # i.e. the Cooperative Steering toggle added by the VTB port. ui_state re-reads
+  # CarParamsPersistent in update_params(), and VehicleLayout rebuilds its brand
+  # items from ui_state.CP.brand.
+  CP = car.CarParams()
+  CP.carFingerprint = "TESLA_MODEL_3"
+  CP.brand = "tesla"
+  Params().put("CarParamsPersistent", CP.to_bytes(), block=True)
+
+
+def open_vehicle_panel(main_layout) -> None:
+  # PanelType is extended with VEHICLE by the sunnypilot settings module, which is only
+  # imported once the main layout is built, so resolve it lazily at call time.
+  from openpilot.selfdrive.ui.layouts.settings.settings import PanelType
+  main_layout.open_settings(PanelType.VEHICLE)
+
+
 # --- Send functions ---
 
 def send_onroad(pm: PubMaster) -> None:
@@ -500,6 +518,13 @@ def build_tizi_script(pm: PubMaster, main_layout, script: Script) -> None:
   script.click(1930, 115)  # click cancel on keyboard
   script.click(2000, 960)  # toggle alpha long
   script.click(1500, 875)  # confirm
+
+  # === Settings - Vehicle (Tesla cooperative steering toggle) ===
+  # Pose as a Tesla, then jump straight to the Vehicle panel so the artifact captures the
+  # Cooperative Steering toggle (the one UI change in the VTB port). Done programmatically
+  # rather than by clicking the nav, since the Vehicle row only appears with a car recognized.
+  script.setup(setup_tesla_car, wait_after=WAIT_LONG)
+  script.setup(lambda: open_vehicle_panel(main_layout), wait_after=WAIT_LONG)
 
   # === Close settings ===
   script.click(250, 160)
