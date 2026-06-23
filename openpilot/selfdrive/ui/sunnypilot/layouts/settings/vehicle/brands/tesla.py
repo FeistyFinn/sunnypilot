@@ -27,8 +27,8 @@ class TeslaSettings(BrandSettings):
       f"{tr('The faster you go, the stiffer the steering gets.')}"
     )
     mads_fingers_desc = tr(
-      "Number of simultaneous fingers on the infotainment screen that toggle MADS. "
-      "Default 5 avoids accidental triggers from map zoom or climate gestures. "
+      "Number of simultaneous fingers on the infotainment screen that toggle MADS. " +
+      "Default 5 avoids accidental triggers from map zoom or climate gestures. " +
       "Deprecated Tesla harness only."
     )
 
