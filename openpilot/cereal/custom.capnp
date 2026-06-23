@@ -436,6 +436,18 @@ struct BackupManagerSP @0xf98d843bfd7004a3 {
 
 struct CarStateSP @0xb86e6369214c01c8 {
   speedLimit @0 :Float32;
+  coopSteering @1 :CoopSteering;  # VTB cooperative-steering inertia-FF telemetry (incl. shadow mode)
+
+  struct CoopSteering {
+    coopActive @0 :Bool;
+    inertiaCompActive @1 :Bool;
+    shadowActive @2 :Bool;        # FF computed + logged but not applied
+    alphaFilt @3 :Float32;        # rad/s^2 - filtered wheel angular acceleration
+    tauInertia @4 :Float32;       # Nm - J*alpha (deadzone-guarded), what the FF subtracts
+    tauIntent @5 :Float32;        # Nm - measured driver torque minus the inertial ghost
+    inertiaJUsed @6 :Float32;     # kg*m^2 - clamped J actually used by the FF
+    angleOverride @7 :Float32;    # deg - cooperative-steering angle offset applied
+  }
 }
 
 struct LiveMapDataSP @0xf416ec09499d9d19 {
