@@ -32,7 +32,7 @@ class TeslaSettings(BrandSettings):
       f"{tr('The faster you go, the stiffer the steering gets.')}"
     )
     inertia_comp_desc = tr(
-      "Subtracts the estimated wheel-inertia torque from driver torque before mapping to angle. "
+      "Subtracts the estimated wheel-inertia torque from driver torque before mapping to angle. " +
       "Disable to fall back to the un-compensated v1 algorithm if the compensation feels off."
     )
     mads_fingers_desc = tr(
