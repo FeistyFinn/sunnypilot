@@ -351,6 +351,7 @@ struct CarParamsSP @0x80ae746ee2596b11 {
   pcmCruiseSpeed @3 :Bool;
   intelligentCruiseButtonManagementAvailable @4 :Bool;
   enableGasInterceptor @5 :Bool;
+  teslaCoopSteeringInertiaJ @6 :Float32;  # per-vehicle tunable VTB inertia-comp J (kg*m^2); 0 -> module default
 
   neuralNetworkLateralControl @2 :NeuralNetworkLateralControl;
 
