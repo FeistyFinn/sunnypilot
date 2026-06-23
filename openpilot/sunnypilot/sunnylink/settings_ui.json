@@ -2163,6 +2163,17 @@
           ]
         },
         {
+          "key": "TeslaCoopSteeringInertiaComp",
+          "widget": "toggle",
+          "title": "Cooperative Steering Inertia Compensation",
+          "description": "Subtracts the estimated wheel-inertia torque from driver torque before mapping to angle. Disable to fall back to the un-compensated v1 algorithm if the compensation feels off.",
+          "enablement": [
+            {
+              "type": "offroad_only"
+            }
+          ]
+        },
+        {
           "key": "TeslaInfotainmentMadsToggleFingers",
           "widget": "option",
           "title": "MADS Toggle Touch Points",
