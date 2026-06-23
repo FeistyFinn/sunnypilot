@@ -34,6 +34,7 @@ def test_coop_steering_toggle_wired_to_param():
   assert settings.items == [
     settings.coop_steering_toggle,
     settings.coop_steering_inertia_comp_toggle,
+    settings.coop_steering_inertia_shadow_toggle,
     settings.mads_toggle_fingers_item,
   ]
   assert settings.coop_steering_toggle.action_item.toggle.param_key == "TeslaCoopSteering"
@@ -47,6 +48,16 @@ def test_inertia_comp_toggle_wired_to_param():
 
   settings = TeslaSettings()
   assert settings.coop_steering_inertia_comp_toggle.action_item.toggle.param_key == "TeslaCoopSteeringInertiaComp"
+
+
+def test_inertia_shadow_toggle_wired_to_param():
+  """The shadow-mode sub-toggle must write TeslaCoopSteeringInertiaShadow -- the param the opendbc
+  Tesla interface reads to set the CP_SP COOP_STEERING_INERTIA_SHADOW flag (FF computed + logged but
+  NOT applied). Drift here would mislead the driver about whether the FF is actually steering."""
+  from openpilot.selfdrive.ui.sunnypilot.layouts.settings.vehicle.brands.tesla import TeslaSettings
+
+  settings = TeslaSettings()
+  assert settings.coop_steering_inertia_shadow_toggle.action_item.toggle.param_key == "TeslaCoopSteeringInertiaShadow"
 
 
 def test_mads_toggle_fingers_wired_to_param():
@@ -74,10 +85,12 @@ def test_update_settings_locks_toggle_onroad(monkeypatch):
   settings.update_settings()
   assert settings.coop_steering_toggle.action_item.enabled
   assert settings.coop_steering_inertia_comp_toggle.action_item.enabled
+  assert settings.coop_steering_inertia_shadow_toggle.action_item.enabled
   assert settings.mads_toggle_fingers_item.action_item.enabled
 
   monkeypatch.setattr(ui_state, "is_offroad", lambda: False)
   settings.update_settings()
   assert not settings.coop_steering_toggle.action_item.enabled
   assert not settings.coop_steering_inertia_comp_toggle.action_item.enabled
+  assert not settings.coop_steering_inertia_shadow_toggle.action_item.enabled
   assert not settings.mads_toggle_fingers_item.action_item.enabled

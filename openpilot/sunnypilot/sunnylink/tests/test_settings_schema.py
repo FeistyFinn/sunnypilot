@@ -287,6 +287,7 @@ class TestKnownVehicleSettings:
     keys = {i["key"] for i in _brand_items(schema["vehicle_settings"].get("tesla"))}
     assert "TeslaCoopSteering" in keys
     assert "TeslaCoopSteeringInertiaComp" in keys
+    assert "TeslaCoopSteeringInertiaShadow" in keys
     assert "TeslaInfotainmentMadsToggleFingers" in keys
 
   def test_subaru_has_stop_and_go(self, schema):
