@@ -2161,6 +2161,20 @@
               "type": "offroad_only"
             }
           ]
+        },
+        {
+          "key": "TeslaInfotainmentMadsToggleFingers",
+          "widget": "option",
+          "title": "MADS Toggle Touch Points",
+          "description": "Number of simultaneous fingers on the infotainment screen that toggle MADS. Default 5 avoids accidental triggers from map zoom or climate gestures. Deprecated Tesla harness only.",
+          "min": 3,
+          "max": 5,
+          "step": 1,
+          "enablement": [
+            {
+              "type": "offroad_only"
+            }
+          ]
         }
       ]
     },

@@ -31,13 +31,29 @@ def test_coop_steering_toggle_wired_to_param():
   from openpilot.selfdrive.ui.sunnypilot.layouts.settings.vehicle.brands.tesla import TeslaSettings
 
   settings = TeslaSettings()
-  assert settings.items == [settings.coop_steering_toggle]
+  assert settings.items == [
+    settings.coop_steering_toggle,
+    settings.mads_toggle_fingers_item,
+  ]
   assert settings.coop_steering_toggle.action_item.toggle.param_key == "TeslaCoopSteering"
 
 
+def test_mads_toggle_fingers_wired_to_param():
+  """The MADS-toggle finger count picker must write TeslaInfotainmentMadsToggleFingers -- the
+  param the opendbc Tesla interface reads to set the CP_SP MADS_TOGGLE_FINGERS_* flag bits."""
+  from openpilot.selfdrive.ui.sunnypilot.layouts.settings.vehicle.brands.tesla import TeslaSettings
+
+  settings = TeslaSettings()
+  option = settings.mads_toggle_fingers_item.action_item
+  assert option.param_key == "TeslaInfotainmentMadsToggleFingers"
+  assert option.min_value == 3
+  assert option.max_value == 5
+
+
 def test_update_settings_locks_toggle_onroad(monkeypatch):
-  """The toggle is editable only offroad (matches the panda safety gate that blocks the param
-  while the car is on). update_settings() must not crash and must reflect the offroad state."""
+  """The settings widgets are editable only offroad (matches the panda safety gate that blocks
+  the params while the car is on). update_settings() must not crash and must reflect the
+  offroad state on every widget."""
   from openpilot.selfdrive.ui.sunnypilot.layouts.settings.vehicle.brands.tesla import TeslaSettings
   from openpilot.selfdrive.ui.ui_state import ui_state
 
@@ -46,7 +62,9 @@ def test_update_settings_locks_toggle_onroad(monkeypatch):
   monkeypatch.setattr(ui_state, "is_offroad", lambda: True)
   settings.update_settings()
   assert settings.coop_steering_toggle.action_item.enabled
+  assert settings.mads_toggle_fingers_item.action_item.enabled
 
   monkeypatch.setattr(ui_state, "is_offroad", lambda: False)
   settings.update_settings()
   assert not settings.coop_steering_toggle.action_item.enabled
+  assert not settings.mads_toggle_fingers_item.action_item.enabled
