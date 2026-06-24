@@ -60,11 +60,6 @@ jobs:
     # the on-device build is unaffected, and the pre-#1861 base built green.
     # Kept here (not deleted) so it auto-returns to a blocking signal once
     # /vtb-sync lands a fixed upstream — REMOVE continue-on-error then.
-    #
-    # Meanwhile the AUTHORITATIVE full-build + unit-test gate is vtb-ci-device.yaml,
-    # which runs `scons` natively on the comma 3X self-hosted runner (larch64 skips
-    # the x264 guard, so the build is green there). Dispatch it while the car is
-    # parked: `gh workflow run vtb-ci-device.yaml --ref <vtb-branch>`.
     continue-on-error: true
     steps:
       - uses: actions/checkout@v6
