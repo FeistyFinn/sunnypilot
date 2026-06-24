@@ -9,7 +9,16 @@ from dataclasses import dataclass
 
 from openpilot.common.constants import CV
 from openpilot.selfdrive.ui.ui_state import ui_state
+from openpilot.selfdrive.ui.sunnypilot.onroad.developer_ui.vtb_fit import (
+  VTB_FIT_SAMPLES, vtb_sample_qualifies, vtb_fit_status,
+)
 from openpilot.system.ui.lib.text_measure import measure_text_cached
+
+# VTB inertia-comp readout colors (match the existing element palette).
+_VTB_GREEN = rl.Color(0, 255, 0, 255)
+_VTB_ORANGE = rl.Color(255, 188, 0, 255)
+_VTB_GREY = rl.Color(145, 155, 149, 255)
+_VTB_FIT_COLORS = {"sign_error": rl.RED, "saturated": rl.RED, "ready": _VTB_GREEN, "gathering": _VTB_ORANGE}
 
 
 @dataclass
@@ -346,3 +355,50 @@ class AltitudeElement(GpsInfoElement):
 
     value = f"{altitude:.1f}" if gps_accuracy != 0.0 else "-"
     return UiElement(value, "ALT.", self.unit, rl.WHITE)
+
+
+class VtbModeElement:
+  """VTB cooperative-steering inertia-comp mode: LIVE (FF applied) / SHADOW (computed only) / - (off)."""
+  def __init__(self):
+    self.unit = ""
+
+  def update(self, sm, is_metric: bool) -> UiElement:
+    coop = sm['carStateSP'].coopSteering
+    if coop.inertiaCompActive:
+      return UiElement("LIVE", "VTB", self.unit, _VTB_GREEN)
+    if coop.shadowActive:
+      return UiElement("SHADOW", "VTB", self.unit, _VTB_GREY)
+    return UiElement("-", "VTB", self.unit, rl.WHITE)
+
+
+class VtbInertiaJElement:
+  """The inertia constant J (kg*m^2) the FF is actually using (TeslaCoopSteeringInertiaJ or default)."""
+  def __init__(self):
+    self.unit = ""
+
+  def update(self, sm, is_metric: bool) -> UiElement:
+    coop = sm['carStateSP'].coopSteering
+    return UiElement(f"{coop.inertiaJUsed:.3f}", "J", self.unit, rl.WHITE)
+
+
+class VtbFitCoverageElement:
+  """Live fit-readiness meter: accumulated qualifying samples toward the offline fit's 200-sample gate.
+
+  Counts by accumulated qualifying *time* (x100 -> equivalent 100 Hz samples) rather than UI frames,
+  since the UI renders below 100 Hz. Color encodes an FF-health verdict (sign error / saturation /
+  ready / gathering). Accumulates cumulatively for the drive; reset() is called on a new session.
+  """
+  def __init__(self):
+    self.unit = ""
+    self._seconds = 0.0  # cumulative qualifying time this session
+
+  def reset(self) -> None:
+    self._seconds = 0.0
+
+  def update(self, sm, is_metric: bool) -> UiElement:
+    coop = sm['carStateSP'].coopSteering
+    if vtb_sample_qualifies(coop, sm['carState']):
+      self._seconds += rl.get_frame_time()
+    n = min(int(self._seconds * 100.0), VTB_FIT_SAMPLES)
+    color = _VTB_FIT_COLORS[vtb_fit_status(coop, n)]
+    return UiElement(f"{n}/{VTB_FIT_SAMPLES}", "FIT", self.unit, color)

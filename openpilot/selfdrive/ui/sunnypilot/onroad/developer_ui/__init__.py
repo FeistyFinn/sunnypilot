@@ -12,7 +12,8 @@ from openpilot.selfdrive.ui.sunnypilot.onroad.developer_ui.elements import (
   UiElement, RelDistElement, RelSpeedElement, SteeringAngleElement,
   DesiredLateralAccelElement, ActualLateralAccelElement, DesiredSteeringAngleElement,
   AEgoElement, LeadSpeedElement, FrictionCoefficientElement, LatAccelFactorElement,
-  SteeringTorqueEpsElement, BearingDegElement, AltitudeElement, DesiredSteeringPIDElement
+  SteeringTorqueEpsElement, BearingDegElement, AltitudeElement, DesiredSteeringPIDElement,
+  VtbModeElement, VtbInertiaJElement, VtbFitCoverageElement
 )
 from openpilot.system.ui.lib.application import gui_app, FontWeight
 from openpilot.system.ui.lib.text_measure import measure_text_cached
@@ -54,8 +55,26 @@ class DeveloperUiRenderer(Widget):
     self.bearing_elem = BearingDegElement()
     self.altitude_elem = AltitudeElement()
 
+    # VTB inertia-comp fit-readiness readouts (shown only once coop steering has been active).
+    self.vtb_mode_elem = VtbModeElement()
+    self.vtb_j_elem = VtbInertiaJElement()
+    self.vtb_fit_elem = VtbFitCoverageElement()
+    self._coop_seen = False
+    self._started_frame = -1
+    self._vtb_bottom: list[UiElement] = []  # full trio: mode + J + FIT
+    self._vtb_right: list[UiElement] = []   # FIT meter only (right panel has room for one more)
+
   def _update_state(self) -> None:
     self.dev_ui_mode = ui_state.developer_ui
+
+    # Reset the VTB fit accumulator + sticky gate on a new drive (started_frame changes per session).
+    if ui_state.started_frame != self._started_frame:
+      self._started_frame = ui_state.started_frame
+      self._coop_seen = False
+      self.vtb_fit_elem.reset()
+    # Sticky: once coop steering has been active this session, keep the VTB readouts visible.
+    if ui_state.sm['carStateSP'].coopSteering.coopActive:
+      self._coop_seen = True
 
   def _render(self, rect: rl.Rectangle) -> None:
     if self.dev_ui_mode == DeveloperUiState.OFF:
@@ -64,6 +83,18 @@ class DeveloperUiRenderer(Widget):
     sm = ui_state.sm
     if sm.recv_frame["carState"] < ui_state.started_frame:
       return
+
+    # Compute the VTB readouts once per frame (the fit element accumulates time, so it must not run
+    # twice when both panels are drawn). The bottom bar gets the full trio; the right panel only has
+    # room for one more big readout, so it gets the FIT meter (the same shared UiElement object).
+    self._vtb_bottom = []
+    self._vtb_right = []
+    if self._coop_seen:
+      mode_e = self.vtb_mode_elem.update(sm, ui_state.is_metric)
+      j_e = self.vtb_j_elem.update(sm, ui_state.is_metric)
+      fit_e = self.vtb_fit_elem.update(sm, ui_state.is_metric)
+      self._vtb_bottom = [mode_e, j_e, fit_e]
+      self._vtb_right = [fit_e]
 
     if self.dev_ui_mode == DeveloperUiState.BOTTOM:
       self._draw_bottom_dev_ui(rect)
@@ -95,6 +126,7 @@ class DeveloperUiRenderer(Widget):
       elements.append(self.desired_pid_steer_elem.update(sm, ui_state.is_metric))
 
     elements.append(self.actual_lat_accel_elem.update(sm, ui_state.is_metric))
+    elements.extend(self._vtb_right)
 
     current_y = y
     for element in elements:
@@ -157,6 +189,8 @@ class DeveloperUiRenderer(Widget):
     # Add altitude if GPS available
     if sm.valid['gpsLocationExternal'] or sm.valid['gpsLocation']:
       elements.append(self.altitude_elem.update(sm, ui_state.is_metric))
+
+    elements.extend(self._vtb_bottom)
 
     if not elements:
       return
