@@ -125,7 +125,6 @@ def initialize_params(params) -> list[dict[str, Any]]:
     "TeslaCoopSteering",
     "TeslaCoopSteeringInertiaComp",
     "TeslaCoopSteeringInertiaJ",
-    "TeslaCoopSteeringInertiaShadow",
     "TeslaInfotainmentMadsToggleFingers",
   ])
 

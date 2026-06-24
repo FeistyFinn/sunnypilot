@@ -58,14 +58,8 @@ sections:
     - $ref: '#/macros/offroad'
   - key: TeslaCoopSteeringInertiaComp
     widget: toggle
-    title: Cooperative Steering Inertia Compensation
-    description: Subtracts the estimated wheel-inertia torque from driver torque before mapping to angle. Disable to fall back to the un-compensated v1 algorithm if the compensation feels off. While Shadow Mode is on, the feedforward is only computed and logged - it does not steer.
-    enablement:
-    - $ref: '#/macros/offroad'
-  - key: TeslaCoopSteeringInertiaShadow
-    widget: toggle
-    title: 'Inertia Compensation: Shadow Mode (log only - no steering)'
-    description: SHADOW MODE - the inertia feedforward is computed and logged for analysis but is NOT applied to steering; baseline cooperative steering is unchanged. Turn this OFF to run the feedforward live (it will actually adjust steering).
+    title: Inertia Compensation
+    description: 'Subtracts the estimated wheel-inertia torque from driver torque before mapping to angle, so wheel-acceleration ghost-torque is not read as steering intent. OFF = shadow: the feedforward is computed and logged for analysis but does NOT steer (baseline cooperative steering is unchanged). ON = live: the feedforward actually adjusts steering.'
     enablement:
     - $ref: '#/macros/offroad'
   - key: TeslaInfotainmentMadsToggleFingers
