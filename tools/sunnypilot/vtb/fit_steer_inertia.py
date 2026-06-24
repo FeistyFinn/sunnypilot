@@ -130,7 +130,7 @@ def contiguous_runs(t: np.ndarray) -> list[tuple[int, int]]:
   brk = np.where(np.diff(t) > GAP_S)[0]
   starts = np.concatenate(([0], brk + 1))
   ends = np.concatenate((brk + 1, [len(t)]))
-  return [(s, e) for s, e in zip(starts, ends) if e - s >= 3]
+  return [(s, e) for s, e in zip(starts, ends, strict=True) if e - s >= 3]
 
 
 def resample_and_alpha(d: dict, rc: float) -> dict[str, np.ndarray]:
@@ -159,9 +159,13 @@ def resample_and_alpha(d: dict, rc: float) -> dict[str, np.ndarray]:
       alpha[i] = math.radians(filt.update(raw))
       prev = g_rate[i]
 
-    cols["tau"].append(g_tau); cols["rate"].append(g_rate); cols["angle"].append(g_angle)
-    cols["vego"].append(g_vego); cols["alpha"].append(alpha)
-    cols["pressed"].append(g_pressed); cols["lat"].append(g_lat)
+    cols["tau"].append(g_tau)
+    cols["rate"].append(g_rate)
+    cols["angle"].append(g_angle)
+    cols["vego"].append(g_vego)
+    cols["alpha"].append(alpha)
+    cols["pressed"].append(g_pressed)
+    cols["lat"].append(g_lat)
   if not cols["tau"]:
     return {k: np.array([]) for k in cols}
   return {k: np.concatenate(v) for k, v in cols.items()}
@@ -249,17 +253,17 @@ def banner(s):
 
 def print_fit(r: dict):
   if r["status"] == "INSUFFICIENT":
-    print(f"  [{r['route']}] rc={r['rc']:.3f}  coverage {r['coverage_pct']:.2f}% "
+    print(f"  [{r['route']}] rc={r['rc']:.3f}  coverage {r['coverage_pct']:.2f}% " +
           f"({r['n_id']}/{r['n_total']})  -> INSUFFICIENT excitation for a fit")
     return
-  print(f"  [{r['route']}] rc={r['rc']:.3f}  J = {r['J']:.4f} kg*m^2 "
-        f"[{r['J_lo']:.4f}, {r['J_hi']:.4f}]  R^2={r['r2']:.3f}  "
+  print(f"  [{r['route']}] rc={r['rc']:.3f}  J = {r['J']:.4f} kg*m^2 " +
+        f"[{r['J_lo']:.4f}, {r['J_hi']:.4f}]  R^2={r['r2']:.3f}  " +
         f"resid_rms={r['resid_rms']:.3f} Nm  n={r['n_id']} ({r['coverage_pct']:.1f}% cov)")
   print(f"        nuisance: damping={r['damping']:.4f}  stiffness={r['stiffness']:.4f}  offset={r['offset']:.3f}")
   if r.get("J_by_speed"):
     sb = "  ".join(f"{lo}-{hi}m/s:{j:.3f}(n={n})" for lo, hi, n, j in r["J_by_speed"])
     print(f"        J vs speed: {sb}")
-  print(f"        forward-check: hands-off tau RMS {r['tau_raw_rms']:.3f} -> intent RMS "
+  print(f"        forward-check: hands-off tau RMS {r['tau_raw_rms']:.3f} -> intent RMS " +
         f"{r['tau_intent_rms']:.3f} Nm  ({100*(1-r['tau_intent_rms']/r['tau_raw_rms']):.0f}% reduction)")
 
 
@@ -270,7 +274,7 @@ def main():
   args = ap.parse_args()
 
   routes = args.routes or default_routes()
-  banner(f"VTB inertia-J fit  |  DT_LAT_CTRL={DT_LAT_CTRL*1000:.1f}ms (STEER_STEP={CarControllerParams.STEER_STEP})  "
+  banner(f"VTB inertia-J fit  |  DT_LAT_CTRL={DT_LAT_CTRL*1000:.1f}ms (STEER_STEP={CarControllerParams.STEER_STEP})  " +
          f"deadzone={DEADZONE_NM}Nm  alpha_floor={ALPHA_FLOOR}rad/s^2")
   print(f"routes: {routes}")
 

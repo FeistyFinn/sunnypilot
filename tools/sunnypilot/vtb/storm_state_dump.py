@@ -19,7 +19,7 @@ def in_win(rt):
 def main(seg_paths):
   t0 = None
   # latest cached state
-  cal = pal = cont = None       # controlsAllowed, controlsAllowedLateral (chosen panda), safetyModel
+  cal = pal = None              # controlsAllowed, controlsAllowedLateral (chosen panda)
   lat_active = enabled_cc = None
   ss_en = ss_act = None
   sft = sfp = veg = spress = None
@@ -35,7 +35,7 @@ def main(seg_paths):
       if w == "pandaStates":
         for ps in msg.pandaStates:
           if str(ps.safetyModel) not in ("silent", "noOutput"):
-            cal, pal, cont = ps.controlsAllowed, ps.controlsAllowedLateral, str(ps.safetyModel)
+            cal, pal = ps.controlsAllowed, ps.controlsAllowedLateral
             break
       elif w == "carControl":
         lat_active = msg.carControl.latActive
@@ -54,8 +54,8 @@ def main(seg_paths):
           key = (cal, pal, lat_active, enabled_cc, ss_en, ss_act, sft, sfp, spress)
           if key != last_key or btxt:
             last_key = key
-            print(f"{rt:7.2f} pAllow={cal} pLat={pal} | ccLatAct={lat_active} ccEn={enabled_cc} "
-                  f"| ssEn={ss_en} ssAct={ss_act} | sFaultT={sft} sFaultP={sfp} vEgo={veg:4.1f} "
+            print(f"{rt:7.2f} pAllow={cal} pLat={pal} | ccLatAct={lat_active} ccEn={enabled_cc} " +
+                  f"| ssEn={ss_en} ssAct={ss_act} | sFaultT={sft} sFaultP={sfp} vEgo={veg:4.1f} " +
                   f"sPress={spress}{btxt}")
   return 0
 

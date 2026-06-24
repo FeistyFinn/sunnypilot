@@ -52,7 +52,7 @@ def main(seg_paths):
           key = (hol, abs(tbt) > DISENGAGE_TORQUE, pal, sft, diseng)
           if key != last_key:
             last_key = key
-            print(f"{rt:7.2f}  hands_on_level={hol}  torsionBar={tbt:5d}cNm ({tbt/100:+.2f}Nm)  "
+            print(f"{rt:7.2f}  hands_on_level={hol}  torsionBar={tbt:5d}cNm ({tbt/100:+.2f}Nm)  " +
                   f"-> steering_disengage={diseng} [{','.join(trig) or '-'}]  | pLat={pal} steerFaultTemp={sft}")
   return 0
 

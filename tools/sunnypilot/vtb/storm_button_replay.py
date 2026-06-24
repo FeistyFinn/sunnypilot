@@ -66,7 +66,8 @@ def main(seg_paths):
     if fp:
       break
   if not fp:
-    print("FATAL: no carParams in segments"); return 1
+    print("FATAL: no carParams in segments")
+    return 1
   print(f"carFingerprint = {fp}")
   print(f"adas DBC       = {DBC[fp][Bus.adas]}   (bus={CANBUS.vehicle})")
 
@@ -111,7 +112,7 @@ def main(seg_paths):
   t_lkas, t_unk = summarize_events(test_evs)
 
   def min_gap(ts):
-    return min((b - a for a, b in zip(ts, ts[1:])), default=float("inf"))
+    return min((b - a for a, b in zip(ts, ts[1:], strict=False)), default=float("inf"))
 
   print(f"\ncarState frames processed : {n_carstate}")
   print(f"touch-count histogram     : {dict(sorted(touch_hist.items()))}")
@@ -131,10 +132,10 @@ def main(seg_paths):
   if c_lkas == 0:
     print("  INCONCLUSIVE: control logged 0 lkas presses -- storm not in these segments / not the buggy build.")
   elif thrash:
-    print(f"  FIX CONFIRMED: control thrashes ({c_lkas} lkas presses, {c_unk} unknown, "
-          f"min gap {min_gap(control_lkas_times):.3f}s) -> deployed code collapses the SAME touch stream "
-          f"to {t_lkas} clean toggle(s), {t_unk} unknown. The button thrash that is the necessary "
-          f"precondition for controlsMismatchLateral is eliminated.")
+    print(f"  FIX CONFIRMED: control thrashes ({c_lkas} lkas presses, {c_unk} unknown, " +
+          f"min gap {min_gap(control_lkas_times):.3f}s) -> deployed code collapses the SAME touch stream " +
+          f"to {t_lkas} clean toggle(s), {t_unk} unknown. The button thrash that is the necessary " +
+          "precondition for controlsMismatchLateral is eliminated.")
   else:
     print(f"  REVIEW: control={c_lkas} lkas / test={t_lkas} lkas -- not the expected thrash pattern; inspect above.")
   return 0
