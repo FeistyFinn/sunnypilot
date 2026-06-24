@@ -1,0 +1,86 @@
+# On-device (comma 3X / larch64) CI for the VTB port.
+#
+# WHY THIS EXISTS
+#   .github/workflows/vtb-ci.yaml runs lint + the opendbc Tesla safety suite on
+#   stock GitHub runners (always-green, fast). But it CANNOT run the full `scons`
+#   build: on stock x86 runners the build dies at the SConstruct vendored-library
+#   guard ("Unexpected non-vendored library 'x264'", SConstruct:73), so vtb-ci's
+#   unit_tests job is continue-on-error. That guard is SKIPPED on larch64, so the
+#   build succeeds natively on the comma 3X. This workflow is therefore the
+#   authoritative full-build + unit-test gate for the fork — the one signal a
+#   stock runner physically cannot produce.
+#
+# TRIGGER: manual only (workflow_dispatch). NEVER add pull_request — a self-hosted
+#   runner + an untrusted fork PR = arbitrary code execution on the device
+#   (the github-runner user has passwordless sudo).
+#
+# AVAILABILITY: the runner only accepts jobs while the comma is OFFROAD on bench
+#   power, online, and on a non-metered network (the system/manager/github_runner.sh
+#   voltage/offroad gate). Dispatch it while the car is parked; if it is driving or
+#   off, the run queues until the runner comes back online.
+name: vtb-ci-device
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_tests:
+        description: 'Run not-slow unit tests after the build'
+        type: boolean
+        default: true
+      jobs:
+        description: 'scons parallelism (-j). Drop to 2 if the build OOMs (device has ~3.5GB RAM).'
+        type: string
+        default: '4'
+
+concurrency:
+  group: vtb-ci-device
+  cancel-in-progress: true
+
+jobs:
+  build_device:
+    name: full build + unit tests (on-device larch64)
+    runs-on: [self-hosted, tici]
+    timeout-minutes: 150
+    env:
+      # Persistent on-device scons cache, OUTSIDE the workspace so a clean
+      # checkout doesn't wipe it — and so we never upload a multi-GB cache over
+      # the car's wifi (no actions/cache step). Owned by the github-runner user.
+      SCONS_CACHE: /data/github/cache
+      # Extra pytest plugins the read-only system venv (/usr/local/venv) lacks,
+      # installed to a --target dir and added to PYTHONPATH at test time.
+      PYDEPS: /data/github/pydeps
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Preflight (disk + toolchain)
+        run: |
+          echo "free space:"; df -h /data | tail -1
+          source /etc/profile
+          echo "scons=$(command -v scons)  python3=$(command -v python3)  nproc=$(nproc)"
+
+      - name: Fetch LFS objects (models needed by the build)
+        run: git lfs pull
+
+      - name: Build openpilot (full scons — larch64 skips the x264 guard)
+        run: |
+          source /etc/profile
+          scons -j"${{ inputs.jobs }}" cache_dir="$SCONS_CACHE"
+
+      - name: Ensure pytest plugins (xdist fork + cpp/subtests/mock)
+        if: ${{ inputs.run_tests }}
+        run: |
+          source /etc/profile
+          uv pip install --target "$PYDEPS" --python "$(command -v python3)" --upgrade \
+            "pytest-xdist @ git+https://github.com/sshane/pytest-xdist@2b4372bd62699fb412c4fe2f95bf9f01bd2018da" \
+            pytest-cpp pytest-subtests pytest-mock
+
+      - name: Run not-slow unit tests
+        if: ${{ inputs.run_tests }}
+        timeout-minutes: 60
+        run: |
+          source /etc/profile
+          export PYTHONPATH="$GITHUB_WORKSPACE:$PYDEPS"
+          source selfdrive/test/setup_xvfb.sh || echo "(no Xvfb; display-dependent tests may fail)"
+          MAX_EXAMPLES=1 pytest --continue-on-collection-errors --durations=0 -n logical -m 'not slow'
