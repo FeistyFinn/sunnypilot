@@ -249,7 +249,8 @@ class AugmentedRoadView(CameraView):
     self._bookmark_icon.render(self.rect)
 
   def _switch_stream_if_needed(self, sm):
-    if sm['selfdriveState'].experimentalMode and WIDE_CAM in self.available_streams:
+    # Wide cam at low speed when Experimental Mode is on, or independently via the user toggle
+    if (sm['selfdriveState'].experimentalMode or ui_state.wide_cam_at_low_speed) and WIDE_CAM in self.available_streams:
       v_ego = sm['carState'].vEgo
       if v_ego < WIDE_CAM_MAX_SPEED:
         target = WIDE_CAM

@@ -93,6 +93,12 @@ class VisualsLayout(Widget):
            "This displays what the car is currently doing, not what the planner is requesting."),
         None,
       ),
+      "WideCameraAtLowSpeed": (
+        lambda: tr("Wide Camera at Low Speed"),
+        tr("Show the wide-angle camera view on the driving screen at low speed, " +
+           "without needing Experimental Mode."),
+        None,
+      ),
     }
     self._toggles = {}
     for param, (title, desc, callback) in self._toggle_defs.items():

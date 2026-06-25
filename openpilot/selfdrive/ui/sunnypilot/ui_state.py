@@ -57,6 +57,7 @@ class UIStateSP:
     self.enforce_torque_control: bool = False
     self.custom_torque_params: bool = False
     self.torque_override_enabled: bool = False
+    self.wide_cam_at_low_speed: bool = False
     self._sp_initialized: bool = False
 
   def update(self) -> None:
@@ -168,6 +169,7 @@ class UIStateSP:
     self.torque_override_friction = float(self.params.get("TorqueParamsOverrideFriction", return_default=True))
     self.true_v_ego_ui = self.params.get_bool("TrueVEgoUI")
     self.turn_signals = self.params.get_bool("ShowTurnSignals")
+    self.wide_cam_at_low_speed = self.params.get_bool("WideCameraAtLowSpeed")
     self.boot_offroad_mode = self.params.get("DeviceBootMode", return_default=True)
     self.always_offroad = self.params.get_bool("OffroadMode")
 
