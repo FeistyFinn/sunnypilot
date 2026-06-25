@@ -63,20 +63,24 @@ DEADZONE_NM = 0.5                  # STEER_OVERRIDE_MIN_TORQUE
 J_LIT_LO, J_LIT_HI = 0.05, 0.15    # literature plausibility band (kg*m^2)
 GAP_S = 0.05                       # carState spacing above this starts a new contiguous run
 ALPHA_FLOOR = 5.0                  # rad/s^2 — min |alpha| excitation for a usable ID sample
+# Local rlog roots, mirroring live_watch.py: recent pulls live under realdata, legacy shadow
+# drives under ~/vtb-routes. Search both so a pooled fit can span the whole campaign.
+LOCAL_LOG_ROOTS = ("~/.comma/media/0/realdata", "~/vtb-routes")
 
 
 def default_routes() -> list[str]:
-  root = os.path.expanduser("~/.comma/media/0/realdata")
   names = set()
-  for d in glob.glob(os.path.join(root, "*--*--*")):
-    base = os.path.basename(d)
-    names.add(base.rsplit("--", 1)[0])
+  for root in LOCAL_LOG_ROOTS:
+    for d in glob.glob(os.path.join(os.path.expanduser(root), "*--*--*")):
+      base = os.path.basename(d)
+      names.add(base.rsplit("--", 1)[0])
   return sorted(names)
 
 
 def rlog_paths(route: str) -> list[str]:
-  root = os.path.expanduser("~/.comma/media/0/realdata")
-  segs = glob.glob(os.path.join(root, f"{route}--*", "rlog.zst"))
+  segs: list[str] = []
+  for root in LOCAL_LOG_ROOTS:
+    segs += glob.glob(os.path.join(os.path.expanduser(root), f"{route}--*", "rlog.zst"))
   # sort by numeric segment index
   return sorted(segs, key=lambda p: int(os.path.basename(os.path.dirname(p)).rsplit("--", 1)[1]))
 
@@ -85,7 +89,7 @@ def load_route(route: str) -> dict[str, np.ndarray]:
   """Extract time-aligned carState + latActive at carState's native 100 Hz."""
   paths = rlog_paths(route)
   if not paths:
-    raise SystemExit(f"no rlog.zst found locally for route {route} (expected under ~/.comma/media/0/realdata)")
+    raise SystemExit(f"no rlog.zst found locally for route {route} (expected under {' or '.join(LOCAL_LOG_ROOTS)})")
   lr = LogReader(paths, sort_by_time=True)
 
   cs_t, tau, rate, angle, pressed, vego = [], [], [], [], [], []
