@@ -2163,17 +2163,6 @@
           ]
         },
         {
-          "key": "TeslaCoopSteeringInertiaComp",
-          "widget": "toggle",
-          "title": "Inertia Compensation",
-          "description": "Subtracts the estimated wheel-inertia torque from driver torque before mapping to angle, so wheel-acceleration ghost-torque is not read as steering intent. OFF = shadow: the feedforward is computed and logged for analysis but does NOT steer (baseline cooperative steering is unchanged). ON = live: the feedforward actually adjusts steering.",
-          "enablement": [
-            {
-              "type": "offroad_only"
-            }
-          ]
-        },
-        {
           "key": "TeslaInfotainmentMadsToggleFingers",
           "widget": "option",
           "title": "MADS Toggle Touch Points",

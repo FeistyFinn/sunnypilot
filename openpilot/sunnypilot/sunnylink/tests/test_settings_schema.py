@@ -286,8 +286,9 @@ class TestKnownVehicleSettings:
   def test_tesla_has_coop_steering(self, schema):
     keys = {i["key"] for i in _brand_items(schema["vehicle_settings"].get("tesla"))}
     assert "TeslaCoopSteering" in keys
-    assert "TeslaCoopSteeringInertiaComp" in keys
     assert "TeslaInfotainmentMadsToggleFingers" in keys
+    # inertia-comp is shadow-only now: the live/shadow toggle and the old shadow param are both gone
+    assert "TeslaCoopSteeringInertiaComp" not in keys
     assert "TeslaCoopSteeringInertiaShadow" not in keys
 
   def test_subaru_has_stop_and_go(self, schema):
