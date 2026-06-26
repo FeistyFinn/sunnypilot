@@ -16,6 +16,7 @@ on:
   push:
     branches:
       - 'vtb-**'
+  pull_request:
   workflow_dispatch:
 
 concurrency:
@@ -50,17 +51,14 @@ jobs:
   unit_tests:
     name: unit tests
     runs-on: ubuntu-24.04
-    # NON-BLOCKING (temporary). The full scons build currently fails on stock
-    # GitHub runners at the SConstruct vendored-library guard:
-    #   scons: *** Unexpected non-vendored library 'x264'   (SConstruct:73)
-    # Root cause is upstream, not VTB: the package-update bot (uv.lock commit
-    # 122ac986de, "[bot] Update Python packages (#1861)") re-pinned the vendored
-    # ffmpeg wheel so its LIB_DIR no longer exposes a separate libx264, which
-    # system/loggerd/SConscript still links. The guard is larch64-skipped, so
-    # the on-device build is unaffected, and the pre-#1861 base built green.
-    # Kept here (not deleted) so it auto-returns to a blocking signal once
-    # /vtb-sync lands a fixed upstream — REMOVE continue-on-error then.
-    continue-on-error: true
+    # BLOCKING gate. The build is green again — the earlier upstream
+    # x264/SConstruct:73 vendored-library breakage (scons: *** Unexpected
+    # non-vendored library 'x264') has been fixed, so continue-on-error is gone.
+    # To conserve the private repo's free-tier Actions minutes, the ~12-min scons
+    # build + not-slow suite runs only on pull_request / workflow_dispatch; lint
+    # and tesla safety carry every push. Run on demand:
+    #   gh workflow run vtb-ci.yaml --ref vtb-port
+    if: github.event_name != 'push'
     steps:
       - uses: actions/checkout@v6
         with:
