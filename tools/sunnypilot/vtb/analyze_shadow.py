@@ -25,7 +25,7 @@ for the FF analysis. vEgo (for speed context) is pulled from carState by nearest
 
 Usage:
   python tools/sunnypilot/vtb/analyze_shadow.py                       # all routes under the dir
-  python tools/sunnypilot/vtb/analyze_shadow.py --dir ~/vtb-routes
+  python tools/sunnypilot/vtb/analyze_shadow.py --dir ~/.comma/media/0/realdata
   python tools/sunnypilot/vtb/analyze_shadow.py --routes ROUTE_ID
 """
 from __future__ import annotations
@@ -50,7 +50,7 @@ import numpy as np
 from openpilot.tools.lib.logreader import LogReader
 
 DEADZONE_NM = 0.5          # STEER_OVERRIDE_MIN_TORQUE
-DEFAULT_DIR = "~/vtb-routes"
+DEFAULT_DIR = "~/.comma/media/0/realdata"
 
 
 def deadzone(x: np.ndarray, dz: float = DEADZONE_NM) -> np.ndarray:

@@ -24,7 +24,7 @@ Two run modes:
            /usr/local/venv/bin/python tools/sunnypilot/vtb/live_watch.py --both
   --replay ROUTE|PATH (offline, on a laptop): replays a saved route's rlog through the SAME monitors
        (zero device load) and prints a summary. ROUTE is a route name resolved under
-       ~/.comma/media/0/realdata or ~/vtb-routes, or an explicit rlog.zst / segment-dir path.
+       ~/.comma/media/0/realdata, or an explicit rlog.zst / segment-dir path.
          .venv/bin/python tools/sunnypilot/vtb/live_watch.py --both --replay ROUTE_ID
 """
 from __future__ import annotations
@@ -46,6 +46,7 @@ except ModuleNotFoundError:
   sys.modules["openpilot"] = _pkg
 
 # cereal.messaging is imported lazily inside run_live() so --replay works without a live msgq env.
+from openpilot.tools.sunnypilot.vtb.mads_events import MadsEventDetector, MADS_SERVICES
 
 # --- VTB fit thresholds: KEEP IN SYNC with selfdrive/ui/sunnypilot/onroad/developer_ui/vtb_fit.py ---
 # Replicated (not imported) on purpose: importing that module pulls in pyray via the developer_ui
@@ -56,13 +57,12 @@ VTB_DEADZONE_NM = 0.5    # Nm - hands-off torque gate
 VTB_FIT_SAMPLES = 200    # samples - fit's "n < 200 -> INSUFFICIENT" gate (= 2.0 s at 100 Hz)
 VTB_FF_LIMIT = 2.5       # Nm - inertia FF clamp
 
-GRANT_OK_S = 0.1         # grant latency below this is healthy
-GRANT_TIMEOUT_S = 0.5    # no controlsAllowedLateral this long after a request -> warn (storm precursor)
 DT_MAX_S = 0.05          # clamp the per-tick fit integration so a stall can't inflate the count
 INERTIA_HEARTBEAT_S = 2.0  # live: refresh the FIT line at least this often so alphaPk stays visible
 
-IGNORED_SAFETY_MODELS = ("silent", "noOutput")
-LOCAL_LOG_ROOTS = ("~/.comma/media/0/realdata", "~/vtb-routes")
+# Single local rlog root: all pulled drives (incl. the legacy 2026-06-23 shadow drives, consolidated
+# 2026-06-25) live under realdata. Kept as a tuple so resolve_replay's loop stays unchanged.
+LOCAL_LOG_ROOTS = ("~/.comma/media/0/realdata",)
 
 
 def vtb_sample_qualifies(coop, car_state) -> bool:
@@ -118,55 +118,27 @@ class Monitor:
 
 
 class MadsMonitor(Monitor):
-  SERVICES = ['pandaStates', 'carState', 'carControl', 'selfdriveState', 'onroadEventsSP']
+  SERVICES = list(MADS_SERVICES)
 
   def __init__(self, tag: str = ""):
     super().__init__(tag)
-    # cached state (mirror storm_state_dump.py)
-    self.cal = self.pal = None              # controlsAllowed, controlsAllowedLateral (chosen panda)
+    self.det = MadsEventDetector()          # grant/storm/timeout logic, shared with transcribe_events.py
+    # display-only cached state (mirror storm_state_dump.py); the event logic lives in self.det
     self.lat_active = self.enabled_cc = None
     self.ss_en = self.ss_act = None
     self.sft = self.sfp = self.veg = self.spress = None
     self.last_key = None
-    # grant-latency tracking
-    self.req_t = None                       # time of the engage request edge being timed
-    self.req_kind = ""                      # "lkas" or "latActive"
-    self.prev_lat_active = False
-    self.prev_pal = None
-    self._storm_prev = False
-    # summary counters
-    self.n_lkas = self.n_grant_ok = self.n_grant_slow = self.n_timeout = self.n_storm = 0
-    self.max_lat = 0.0
-
-  def _arm(self, t: float, kind: str) -> None:
-    # first request edge of an engage cycle wins; ignore once already waiting or already granted
-    if self.req_t is None and not self.pal:
-      self.req_t = t
-      self.req_kind = kind
 
   def update(self, sm, t: float) -> None:
+    d = self.det
     if sm.updated['pandaStates']:
-      for ps in sm['pandaStates']:
-        if str(ps.safetyModel) not in IGNORED_SAFETY_MODELS:
-          self.cal, self.pal = ps.controlsAllowed, ps.controlsAllowedLateral
-          break
-      if self.pal and not self.prev_pal and self.req_t is not None:   # grant resolved
-        lat = t - self.req_t
-        ok = lat < GRANT_OK_S
-        self.n_grant_ok += int(ok)
-        self.n_grant_slow += int(not ok)
-        self.max_lat = max(self.max_lat, lat)
-        emit(t, self.tag, f"GRANT  lat={lat:.3f}s {'OK' if ok else 'SLOW'}  ({self.req_kind}->pLat)")
-        self.req_t = None
-      if self.prev_pal and not self.pal:                              # disengage/revoke ends the cycle
-        self.req_t = None
-      self.prev_pal = self.pal
+      ps = [(str(p.safetyModel), p.controlsAllowed, p.controlsAllowedLateral) for p in sm['pandaStates']]
+      for ev in d.on_panda(t, ps):
+        emit(t, self.tag, f"GRANT  lat={ev['lat']:.3f}s {'OK' if ev['ok'] else 'SLOW'}  ({ev['kind']}->pLat)")
 
     if sm.updated['carControl']:
       self.lat_active, self.enabled_cc = sm['carControl'].latActive, sm['carControl'].enabled
-      if self.lat_active and not self.prev_lat_active:
-        self._arm(t, "latActive")
-      self.prev_lat_active = self.lat_active
+      d.on_lat_active(t, self.lat_active)
 
     if sm.updated['selfdriveState']:
       self.ss_en, self.ss_act = sm['selfdriveState'].enabled, sm['selfdriveState'].active
@@ -177,38 +149,30 @@ class MadsMonitor(Monitor):
       self.sft, self.sfp = cs.steerFaultTemporary, cs.steerFaultPermanent
       self.veg, self.spress = cs.vEgo, cs.steeringPressed
       btxt = "".join(f" BTN:{b.type}:{int(b.pressed)}" for b in cs.buttonEvents)
-      for b in cs.buttonEvents:
-        if str(b.type) == "lkas" and b.pressed:
-          self.n_lkas += 1
-          self._arm(t, "lkas")
+      d.on_lkas(t, sum(1 for b in cs.buttonEvents if str(b.type) == "lkas" and b.pressed))
 
     if sm.updated['onroadEventsSP']:
-      evs = sm['onroadEventsSP'].events
-      has_storm = any(str(e.name) == "controlsMismatchLateral" for e in evs)
-      if has_storm and not self._storm_prev:                          # count distinct storm onsets
-        self.n_storm += 1
-        ev = next(e for e in evs if str(e.name) == "controlsMismatchLateral")
-        emit(t, self.tag, f"*** controlsMismatchLateral *** immediateDisable={ev.immediateDisable} vEgo={_fv(self.veg)}  <<<< STORM")
-      self._storm_prev = has_storm
+      storm = next((e for e in sm['onroadEventsSP'].events if str(e.name) == "controlsMismatchLateral"), None)
+      for ev in d.on_storm(t, storm is not None, storm.immediateDisable if storm else False, self.veg):
+        emit(t, self.tag, f"*** controlsMismatchLateral *** immediateDisable={ev['immediate']} vEgo={_fv(self.veg)}  <<<< STORM")
 
-    # grant timeout: abandon the cycle (clear req_t) so a later grant can't report a stale latency
-    # and the next request edge re-arms cleanly.
-    if self.req_t is not None and not self.pal and (t - self.req_t) > GRANT_TIMEOUT_S:
-      self.n_timeout += 1
-      emit(t, self.tag, f"GRANT-TIMEOUT  no pLat {t - self.req_t:.2f}s after {self.req_kind} request  <-- WATCH")
-      self.req_t = None
+    # grant timeout: abandon the cycle so a later grant can't report a stale latency and the next
+    # request edge re-arms cleanly. Checked every tick (mirrors the original block placement).
+    for ev in d.tick(t):
+      emit(t, self.tag, f"GRANT-TIMEOUT  no pLat {ev['elapsed']:.2f}s after {ev['kind']} request  <-- WATCH")
 
-    key = (self.cal, self.pal, self.lat_active, self.enabled_cc, self.ss_en, self.ss_act, self.sft, self.sfp, self.spress)
+    key = (d.cal, d.pal, self.lat_active, self.enabled_cc, self.ss_en, self.ss_act, self.sft, self.sfp, self.spress)
     if self.verbose and (key != self.last_key or btxt):
       self.last_key = key
-      emit(t, self.tag, f"pAllow={self.cal} pLat={self.pal} | ccLatAct={self.lat_active} ccEn={self.enabled_cc} | " +
+      emit(t, self.tag, f"pAllow={d.cal} pLat={d.pal} | ccLatAct={self.lat_active} ccEn={self.enabled_cc} | " +
                         f"ssEn={self.ss_en} ssAct={self.ss_act} | sFaultT={self.sft} sFaultP={self.sfp} " +
                         f"vEgo={_fv(self.veg)} sPress={self.spress}{btxt}")
 
   def summary(self) -> str:
-    verdict = "CLEAN" if (self.n_storm == 0 and self.n_timeout == 0) else "CHECK FAILURES"
-    return (f"MADS lkas_taps={self.n_lkas} grants_ok={self.n_grant_ok} grants_slow={self.n_grant_slow} " +
-            f"timeouts={self.n_timeout} storms={self.n_storm} max_lat={self.max_lat:.3f}s -> {verdict}")
+    s = self.det.summary()
+    verdict = "CLEAN" if (s['storms'] == 0 and s['timeouts'] == 0) else "CHECK FAILURES"
+    return (f"MADS lkas_taps={s['lkas_taps']} grants_ok={s['grants_ok']} grants_slow={s['grants_slow']} " +
+            f"timeouts={s['timeouts']} storms={s['storms']} max_lat={s['max_lat']:.3f}s -> {verdict}")
 
 
 class InertiaMonitor(Monitor):
