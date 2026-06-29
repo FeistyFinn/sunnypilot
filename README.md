@@ -1,3 +1,69 @@
+# sunnypilot — Cooperative Steering (VTB)
+
+> **Nudge the steering wheel without disengaging.** Cooperative steering for angle-control Teslas, at low speed.
+
+This is a [sunnypilot](https://github.com/sunnypilot/sunnypilot) fork that ports dzid26's **Virtual
+Torque Blending (VTB)**. On angle-control Teslas, openpilot tells the EPS *where to put the wheel* —
+there's no torque knob to push against, so any driver input normally has to either be ignored or kill
+lateral control. VTB reads the driver's torque on the steering column, turns it into a **bounded
+steering-angle offset**, and **adds it on top of openpilot's commanded angle**. You can nudge the wheel
+to reposition in a lane, ease around an obstacle, or tighten a slow turn — and lateral stays engaged.
+The mapping comes from the vehicle model, so the same effort buys a big motion in a parking lot and a
+subtle one on the highway, with no gain tables to maintain.
+
+## ✨ What this fork adds
+
+- **Cooperative Steering (VTB)** — driver torque → bounded steering-angle offset blended onto
+  openpilot's path; lateral stays active for nudges below the hands-on / hard-yank limits.
+- **Speed-aware stiffness, for free** — the torque-to-angle gain falls out of the bicycle model
+  (`κ = a_lat / v²`), so authority shrinks ≈ 1/v² as you speed up. No separate low/high-speed modes.
+- **MADS N-finger engagement** — toggle steering engagement by tapping the infotainment screen with a
+  configurable number of fingers (3 / 4 / 5), with a fix for the finger-count desync that caused
+  "TAKE CONTROL IMMEDIATELY" storms.
+- **Cooperative longitudinal** — a tap on the accelerator doesn't kill ACC; longitudinal blends the
+  same way steering does (brake still disengages).
+- **Shadow-mode inertia compensation** — a steering-inertia feed-forward term is computed and logged
+  every frame for offline tuning, but never steers (yet). Offline tooling under `tools/sunnypilot/vtb/`.
+
+## ✅ Requirements
+
+- A **comma 3X** running **AGNOS ≥ 18.4**.
+- An **angle-control Tesla** (Model 3 / Model Y). The feature is Tesla-only and no-ops on other brands.
+
+## 🚀 Enabling it
+
+1. **Settings → Vehicle → Tesla → Cooperative Steering** (the toggle is editable **offroad only**).
+2. Optionally set **MADS Toggle Touch Points** (3 / 4 / 5 fingers; default 5).
+3. The setting is read at car-init, so it takes effect on the **next ignition / drive cycle**.
+
+Full enable steps, the algorithm deep-dive, the safety model, and the tuning guide:
+
+- **In-repo reference:** [`docs/COOPERATIVE_STEERING.md`](docs/COOPERATIVE_STEERING.md)
+- **Project wiki:** <https://github.com/FeistyFinn/sunnypilot/wiki>
+
+## ⚠️ Safety
+
+**VTB is steering actuation. This is alpha research software, and you are the last line of defense.**
+Every command is bounded by the Tesla **panda safety model**, which keeps three independent disengage
+paths live (EPS hands-on level, a hard-yank torsion-bar torque limit, and an EPS angle-rate fault) and
+clamps the commanded angle and its rate to the safety envelope. Read the
+[Safety Model](https://github.com/FeistyFinn/sunnypilot/wiki/Safety-Model) wiki page and
+[`docs/SAFETY.md`](docs/SAFETY.md) before driving, and validate the build in an empty lot first.
+
+## 📚 Documentation
+
+| Where | What |
+| --- | --- |
+| This README | Orientation — what the fork is and how to turn it on. |
+| [`docs/COOPERATIVE_STEERING.md`](docs/COOPERATIVE_STEERING.md) | Canonical in-repo technical reference (physics, integration, safety, params, tuning). |
+| [Project wiki](https://github.com/FeistyFinn/sunnypilot/wiki) | Expanded user + developer guide, MADS details, and FAQ / troubleshooting. |
+
+---
+
+# Built on sunnypilot
+
+The sections below are from upstream sunnypilot, which this fork is built on.
+
 ![](https://user-images.githubusercontent.com/47793918/233812617-beab2e71-57b9-479e-8bff-c3931347ca40.png)
 
 ## 🌞 What is sunnypilot?
@@ -14,12 +80,14 @@ https://docs.sunnypilot.ai/ is your one stop shop for everything from features t
 First, check out this list of items you'll need to [get started](https://community.sunnypilot.ai/t/getting-started-using-sunnypilot-in-your-supported-car/251).
 
 ## Installation
-Next, refer to the sunnypilot community forum for [installation instructions](https://community.sunnypilot.ai/t/read-before-installing-sunnypilot/254), as well as a complete list of [Recommended Branch Installations](https://community.sunnypilot.ai/t/recommended-branch-installations/235).
+This fork is installed by URL / branch, not from sunnypilot's recommended-branch list — see the wiki
+[Overview & Enable](https://github.com/FeistyFinn/sunnypilot/wiki/Overview-and-Enable) page. For the
+base sunnypilot setup, refer to the community forum for [installation instructions](https://community.sunnypilot.ai/t/read-before-installing-sunnypilot/254), as well as a complete list of [Recommended Branch Installations](https://community.sunnypilot.ai/t/recommended-branch-installations/235).
 
 ## 🎆 Pull Requests
 We welcome both pull requests and issues on GitHub. Bug fixes are encouraged.
 
-Pull requests should be against the most current `master` branch.
+Pull requests should be against the `vtb-port` branch.
 
 ## 📊 User Data
 
