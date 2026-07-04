@@ -32,7 +32,7 @@ except ModuleNotFoundError:
 import numpy as np
 
 from openpilot.tools.sunnypilot.vtb.fit_steer_inertia import (
-  default_routes, load_route, resample_and_alpha, id_mask, fit_report, banner,
+  default_routes, load_route, resample_and_alpha, id_mask, fit_report, banner, pool_segs,
   DEADZONE_NM, ALPHA_FLOOR, DT_LAT_CTRL, DEFAULT_RC,
 )
 
@@ -189,7 +189,9 @@ def main() -> int:
     print("\nNo routes with usable carState data.")
     return 1
 
-  pooled = {k: np.concatenate([s[k] for s in segs]) for k in segs[0]}
+  # Use fit_steer_inertia's pooler: it shifts run_bounds offsets and keeps run_bounds a list
+  # (a naive np.concatenate over every key turns run_bounds into an array -> spectral fit crashes).
+  pooled = pool_segs(segs)
 
   banner(f"POOLED  ({len(used)} routes, {len(pooled['tau'])} resampled samples)")
   print("ID-condition funnel:")
