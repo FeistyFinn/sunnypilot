@@ -54,11 +54,12 @@ jobs:
     # BLOCKING gate. The build is green again — the earlier upstream
     # x264/SConstruct:73 vendored-library breakage (scons: *** Unexpected
     # non-vendored library 'x264') has been fixed, so continue-on-error is gone.
-    # To conserve the private repo's free-tier Actions minutes, the ~12-min scons
-    # build + not-slow suite runs only on pull_request / workflow_dispatch; lint
-    # and tesla safety carry every push. Run on demand:
-    #   gh workflow run vtb-ci.yaml --ref vtb-port
-    if: github.event_name != 'push'
+    # The ~12-min scons build + not-slow suite runs on pull_request / workflow_dispatch,
+    # and on EVERY push to the PUBLIC repo (FeistyFinn/sunnypilot — Actions are free there,
+    # so each /vtb-publish gets a full build+test). On the PRIVATE dev repo it stays gated
+    # off push to conserve free-tier Actions minutes; lint + tesla safety carry every push.
+    # Run on demand:  gh workflow run vtb-ci.yaml --ref vtb-port
+    if: github.event_name != 'push' || github.repository == 'FeistyFinn/sunnypilot'
     steps:
       - uses: actions/checkout@v6
         with:
