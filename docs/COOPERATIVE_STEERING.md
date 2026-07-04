@@ -83,14 +83,18 @@ The kinematic term shrinks as `1/v²`; the slip term is speed-independent. At lo
 term dominates → the gain is huge. At high speed it collapses → the small, roughly-flat slip term is
 what's left. The torque-to-angle gain is then `θ_full(v) / 2.0 Nm`:
 
-| Speed          | Approx gain | Felt behavior                          |
-|----------------|-------------|----------------------------------------|
-| ~1 m/s (floor) | up to ~180 °/Nm | Big wheel motion for a tiny nudge   |
-| ~5 m/s         | ~25 °/Nm    | Easy parking-lot corrections           |
-| ~15 m/s        | ~5 °/Nm     | Lane-positioning nudges feel solid     |
-| ~30 m/s        | ~2 °/Nm     | Highway: small nudge, small offset     |
+| Speed          | Gain (VM-computed) | Felt behavior                          |
+|----------------|--------------------|----------------------------------------|
+| ~1 m/s (floor) | ~180 °/Nm (angle-capped) | Big wheel motion for a tiny nudge |
+| ~5 m/s         | ~81 °/Nm           | Easy parking-lot corrections           |
+| ~15 m/s        | ~10 °/Nm           | Lane-positioning nudges feel solid     |
+| ~30 m/s        | ~3.4 °/Nm          | Highway: small nudge, small offset     |
 
-You get speed-aware stiffness for free from the vehicle model, with no gain schedule.
+These are the actual vehicle-model gain `clip(get_steer_from_lat_accel(2.0, v, VM), 360°) / 2.0 Nm`, **not**
+a literal `1/v²` schedule: the understeer slip term makes the gain deviate ~26 % from `1/v²` by 30 m/s
+(measured ratios g₅/g₁₅ = 8.08 vs 9.0 predicted, g₁₅/g₃₀ = 2.97 vs 4.0). Below ~3.3 m/s the 360° angle
+cap pins the gain flat at 180 °/Nm. You get speed-aware stiffness for free from the vehicle model, with no
+gain schedule.
 
 **Torsion-bar torque vs EPS motor torque.** VTB reads `EPAS3S_torsionBarTorque` — the twist in the
 column's torsion bar, i.e. **driver intent** at the column — not the EPS motor torque. If it read motor
@@ -120,13 +124,29 @@ Key points:
   acceleration-limited to `STEER_RESUME_RATE_LIMIT_RAMP_RATE = 300 °/s²` so the wheel never snaps.
 - **Continuous deadzone** (`apply_deadzone`): zero output for `|τ| ≤ 0.5 Nm`, then `τ − sign(τ)·0.5`
   above it — no step at the boundary.
-- **Holding-torque estimate.** `holding_torque = angle_override / torque_to_angle` (forced to 0 below
-  0.1 m/s) — "what steady nudge would the current override correspond to?" — feeds the centering rate.
+- **Holding-torque estimate — and its inversion at speed.** `holding_torque = angle_override /
+  torque_to_angle` (the §3 gain; forced to 0 below 0.1 m/s) — "what steady nudge would the current
+  override correspond to?" — feeds the centering rate. Because the gain *shrinks* with speed, holding a
+  **fixed** angle offset costs **more** sustained torque the faster you go: a 5° offset that is
+  effectively free to hold in a parking lot (≈0.03 Nm at 1 m/s, ≈0.06 at 5) costs ≈0.50 Nm at 15 m/s
+  (right at the 0.5 Nm deadzone floor) and **≈1.49 Nm at 30 m/s** — well into the usable band. This is the
+  `1/v²` stiffening felt as holding effort; it is expected and safe, but it means the estimate is
+  noise-sensitive at high speed (small override noise → large holding-torque swings feeding the centering
+  rate).
 - **Dual-gain rate limit.** Away-from-center and centering deltas are bounded per frame; both currently
-  equal 125 °/s/Nm because both bump the same `MAX_ANGLE_RATE = 5°/20 ms` cap. The asymmetric hook is
-  in the code for future tuning.
-- **Double-count avoidance.** If the planner is already turning the same way the driver nudges, the
-  planner's contribution is subtracted from the override delta so the two don't add up.
+  equal 125 °/s/Nm because both bump the same `MAX_ANGLE_RATE = 5°/20 ms` cap
+  (`125 == MAX_ANGLE_RATE / DT_LAT_CTRL / STEER_OVERRIDE_TORQUE_RANGE`). The asymmetric hook is in the
+  code for future tuning; it is numerically neutralized today.
+- **Double-count avoidance (planner-direction overlap).** When the planner's own per-frame angle change
+  and the driver-override delta point the **same way** (`angle_override_delta · apply_angle_delta > 0`),
+  the planner is already moving the wheel where the driver is nudging, so the override delta is reduced by
+  the overlapping planner delta — bounded to `abs(angle_override_delta)`, so it can neither flip sign nor
+  over-subtract. The override then integrates only the driver's *marginal* contribution beyond what the
+  planner already delivers. When the driver pulls **against** the planner, or either delta is zero
+  (product ≤ 0), **no subtraction** happens and the nudge keeps full authority. Across a planner
+  **reversal** the subtraction toggles on/off frame-to-frame, but because it is bounded by
+  `abs(override_delta)` the override stays **continuous** (no step) through the reversal. This
+  opposite-pull behavior is a deliberate design choice, not incidental.
 - **Integration + final saturation.** The override is an integrator; the blended angle is run through
   the same vehicle-model angle limiter the panda enforces (`apply_steer_angle_limits_vm`).
 - **Anti-windup unwind** (`unwind_override_angle_progressive`). If the final saturator clipped the
@@ -201,13 +221,34 @@ integrator freezes during the press and resumes on lift-off. Longitudinal accel 
 0.0 m/s²) and reverse-prevention are still enforced. Steering blends, gas blends; **brake still
 disengages.**
 
-**What changed vs upstream, and why it's safe.** The VTB delta removed the dedicated `DI_systemStatus`
-(0x118) RX-check that read a multi-bit pedal magnitude and replaced it with a single
-`DI_accelPedalPressed` bit on the already-RX-checked `DI_speed` (0x257). Net result: one fewer
-independent RX-checked message and one fewer signal to validate, with a binary pressed/not-pressed flag
-that's less ambiguous than a magnitude+threshold — the gas-override gate is a one-time init flag, so a
-boolean is sufficient. The 5 Nm torsion-bar disengage path and a MISRA C:2012 fix to its decode round
-out the safety-side change.
+**What changed vs upstream, and why it's safe.** The VTB delta's `opendbc/safety/` surface has four
+independent parts, each defensible on its own:
+
+1. **Torsion-bar disengage (added).** The `|torsion_bar_torque| > 5.0 Nm` trigger above is a *new*
+   OR-chained disengage path (const `TESLA_STEERING_DISENGAGE_TORQUE = 500` cNm), with a MISRA C:2012 fix
+   to its decode. It only *adds* a disengage condition, so the set of states in which lateral stays
+   engaged is a **strict subset** of upstream's — strictly safer. It is the hard-yank backstop: a
+   sustained firm nudge trips hands-on (~2.5 Nm) first; the 5 Nm path catches a slow, deliberate yank
+   that outruns the hands-on debounce.
+2. **Valid-TX-type narrowing.** Base cooperative steering transmits **only** angle control
+   (`DAS_steeringControl`). Upstream's valid-TX allow-list also permits LKAS-style steering TX; since coop
+   never emits LKAS torque, keeping LKAS in the allow-list leaves an unused, unbounded TX path. Narrowing
+   the allow-list to NONE + ANGLE_CONTROL removes that latent path — strictly fewer allowed TX types, and
+   *required by* coop's pure-angle design.
+3. **`autopark → summon`.** A naming/semantics fix (the `tesla_autopark` → `tesla_summon` rename;
+   stock-steering detection broadened from `== LANE_KEEP_ASSIST` to `!= NONE`) so Autopilot-enabled /
+   autopark states don't spuriously disengage. It loosens no bound. *(Contributed by Amy Jeanes; lands as
+   its own PR.)*
+4. **Gas-override RX swap.** Removed the dedicated `DI_systemStatus` (0x118) RX-check that read a
+   multi-bit pedal magnitude, replacing it with a single `DI_accelPedalPressed` bit on the
+   already-RX-checked `DI_speed` (0x257): one fewer independent RX-checked message and one fewer signal to
+   validate, with a binary pressed/not-pressed flag that's less ambiguous than a magnitude+threshold (the
+   gas-override gate is a one-time init flag, so a boolean suffices). *(Ships with the separate
+   gas-override feature.)*
+
+The Tesla safety suite (`test_tesla.py`) is the gate for all four and stays green (353 passed / 234
+subtests as of this writing; boundary cases in `test_steering_wheel_torque_disengage` and
+`test_autopark_summon_while_enabled` / `test_autopark_summon_behavior`).
 
 ## 7. Parameters
 
