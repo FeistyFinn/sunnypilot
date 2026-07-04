@@ -30,7 +30,6 @@ Two run modes:
 from __future__ import annotations
 
 import argparse
-import glob
 import os
 import sys
 import time
@@ -47,22 +46,16 @@ except ModuleNotFoundError:
 
 # cereal.messaging is imported lazily inside run_live() so --replay works without a live msgq env.
 from openpilot.tools.sunnypilot.vtb.mads_events import MadsEventDetector, MADS_SERVICES
+from openpilot.tools.sunnypilot.vtb import logio
+from openpilot.tools.sunnypilot.vtb.vtb_constants import ALPHA_FLOOR, DEADZONE_NM, VTB_FIT_SAMPLES, VTB_FF_LIMIT
 
-# --- VTB fit thresholds: KEEP IN SYNC with selfdrive/ui/sunnypilot/onroad/developer_ui/vtb_fit.py ---
-# Replicated (not imported) on purpose: importing that module pulls in pyray via the developer_ui
-# package __init__.py, which needs a GL/display context this headless process does not have.
-# If you retune vtb_fit.py's thresholds or the qualify/status logic, MIRROR THE CHANGE HERE.
-VTB_ALPHA_FLOOR = 5.0    # rad/s^2 - min |alpha| excitation for a usable ID sample
-VTB_DEADZONE_NM = 0.5    # Nm - hands-off torque gate
-VTB_FIT_SAMPLES = 200    # samples - fit's "n < 200 -> INSUFFICIENT" gate (= 2.0 s at 100 Hz)
-VTB_FF_LIMIT = 2.5       # Nm - inertia FF clamp
+# VTB fit thresholds now live in vtb_constants (the DevUI vtb_fit.py mirror — keep them in sync there).
+# The VTB_-prefixed aliases keep this file's call sites unchanged.
+VTB_ALPHA_FLOOR = ALPHA_FLOOR    # rad/s^2 - min |alpha| excitation for a usable ID sample
+VTB_DEADZONE_NM = DEADZONE_NM    # Nm - hands-off torque gate
 
 DT_MAX_S = 0.05          # clamp the per-tick fit integration so a stall can't inflate the count
 INERTIA_HEARTBEAT_S = 2.0  # live: refresh the FIT line at least this often so alphaPk stays visible
-
-# Single local rlog root: all pulled drives (incl. the legacy 2026-06-23 shadow drives, consolidated
-# 2026-06-25) live under realdata. Kept as a tuple so resolve_replay's loop stays unchanged.
-LOCAL_LOG_ROOTS = ("~/.comma/media/0/realdata",)
 
 
 def vtb_sample_qualifies(coop, car_state) -> bool:
@@ -280,21 +273,10 @@ class ReplaySubMaster:
 
 
 def resolve_replay(arg: str) -> list[str]:
-  """Resolve a --replay argument to a sorted list of rlog.zst paths: an explicit file, a directory
-  (recursive), or a route name searched under the known local log roots."""
-  p = os.path.expanduser(arg)
-  if os.path.isfile(p):
-    return [p]
-  if os.path.isdir(p):
-    segs = sorted(glob.glob(os.path.join(p, "**", "rlog.zst"), recursive=True))
-    if segs:
-      return segs
-    raise SystemExit(f"live_watch: no rlog.zst found under {p}")
-  for root in LOCAL_LOG_ROOTS:
-    segs = glob.glob(os.path.join(os.path.expanduser(root), f"{arg}--*", "rlog.zst"))
-    if segs:
-      return sorted(segs, key=lambda q: int(os.path.basename(os.path.dirname(q)).rsplit("--", 1)[1]))
-  raise SystemExit(f"live_watch: route '{arg}' not found locally under {', '.join(LOCAL_LOG_ROOTS)}")
+  """Resolve a --replay argument to a seg-index-sorted list of rlog.zst paths: an explicit file, a
+  directory (recursive), or a route name under the local log roots. Delegates to the shared resolver
+  (which also seg-sorts the directory case numerically, fixing the old lexicographic --replay <dir> order)."""
+  return logio.resolve_segments(arg)
 
 
 def build_monitors(args) -> list[Monitor]:

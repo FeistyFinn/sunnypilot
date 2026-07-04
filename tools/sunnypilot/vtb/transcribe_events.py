@@ -38,7 +38,6 @@ Usage (OFFLINE, on the Mac -- never on a moving comma):
 from __future__ import annotations
 
 import argparse
-import glob
 import json
 import os
 import sys
@@ -57,14 +56,12 @@ except ModuleNotFoundError:
 import numpy as np
 
 from openpilot.tools.lib.logreader import LogReader
+from openpilot.tools.sunnypilot.vtb import logio
 from openpilot.tools.sunnypilot.vtb.mads_events import MadsEventDetector, MADS_SERVICES
-from openpilot.tools.sunnypilot.vtb.live_watch import vtb_sample_qualifies, resolve_replay, LOCAL_LOG_ROOTS
-from openpilot.tools.sunnypilot.vtb.analyze_shadow import DEADZONE_NM
+from openpilot.tools.sunnypilot.vtb.live_watch import vtb_sample_qualifies, resolve_replay
+from openpilot.tools.sunnypilot.vtb.vtb_constants import DEADZONE_NM, FF_ON_NM, FF_OFF_NM, GUARD_EPS
 
-SCHEMA_VERSION = 1
-FF_ON_NM = 0.05      # Schmitt: |tauInertia| rising above this (while coop) -> ff_engaged
-FF_OFF_NM = 0.01     # |tauInertia| falling below this -> ff_idle (= vtb_fit_status's "FF active" floor)
-GUARD_EPS = 1e-6     # analyze_shadow's deadzone-guard test: |tauInertia| > this inside the deadzone
+SCHEMA_VERSION = 1   # events.jsonl sidecar schema (independent of logio's signals.npz schema)
 _MADS = set(MADS_SERVICES)
 
 
@@ -282,12 +279,7 @@ def transcribe_route(route: str, force: bool = False) -> dict:
 
 
 def local_routes() -> list[str]:
-  names: set[str] = set()
-  for root in LOCAL_LOG_ROOTS:
-    for d in glob.glob(os.path.join(os.path.expanduser(root), "*--*--*")):
-      if os.path.exists(os.path.join(d, "rlog.zst")):   # skip partial pulls (qcamera/qlog but no rlog)
-        names.add(os.path.basename(d).rsplit("--", 1)[0])
-  return sorted(names)
+  return logio.list_local_routes()
 
 
 def main() -> int:

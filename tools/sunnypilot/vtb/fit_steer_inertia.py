@@ -34,7 +34,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import glob
 import math
 import os
 import sys
@@ -51,21 +50,18 @@ except ModuleNotFoundError:
 
 import numpy as np
 
-from openpilot.tools.lib.logreader import LogReader
 from openpilot.common.realtime import DT_CTRL
 from opendbc.car.common.filter_simple import FirstOrderFilter
 from opendbc.car.tesla.values import CarControllerParams
+from openpilot.tools.sunnypilot.vtb import logio
+from openpilot.tools.sunnypilot.vtb.vtb_constants import (
+  DEADZONE_NM, ALPHA_FLOOR, DEFAULT_RC, GAP_S, J_LIT_LO, J_LIT_HI, LOCAL_LOG_ROOTS,
+)
 
-# Mirror coop_steering.py's discretisation + thresholds.
+# DT_LAT_CTRL mirrors coop_steering.py's discretisation; kept HERE (not vtb_constants) because it
+# needs opendbc CarControllerParams + common.realtime, which the pure-constants module avoids so
+# headless tools (live_watch) can import the constants without a car toolchain on PATH.
 DT_LAT_CTRL = DT_CTRL * CarControllerParams.STEER_STEP
-DEFAULT_RC = 0.04                  # STEER_ALPHA_FILTER_RC
-DEADZONE_NM = 0.5                  # STEER_OVERRIDE_MIN_TORQUE
-J_LIT_LO, J_LIT_HI = 0.05, 0.15    # literature plausibility band (kg*m^2)
-GAP_S = 0.05                       # carState spacing above this starts a new contiguous run
-ALPHA_FLOOR = 5.0                  # rad/s^2 — min |alpha| excitation for a usable LEGACY ID sample
-# Local rlog roots, mirroring live_watch.py: recent pulls live under realdata, legacy shadow
-# drives under ~/vtb-routes. Search both so a pooled fit can span the whole campaign.
-LOCAL_LOG_ROOTS = ("~/.comma/media/0/realdata", "~/vtb-routes")
 
 # --- physics-honest estimator (v2) constants ---
 # The legacy fit regresses tau on a CAUSAL, finite-differenced alpha over a tiny |alpha|>5 hands-off
@@ -83,20 +79,11 @@ J_PRIOR_MU, J_PRIOR_SD = 0.10, 0.025   # literature prior N(mu, sd^2): +-2 sd ~ 
 
 
 def default_routes() -> list[str]:
-  names = set()
-  for root in LOCAL_LOG_ROOTS:
-    for d in glob.glob(os.path.join(os.path.expanduser(root), "*--*--*")):
-      base = os.path.basename(d)
-      names.add(base.rsplit("--", 1)[0])
-  return sorted(names)
+  return logio.list_local_routes()
 
 
 def rlog_paths(route: str) -> list[str]:
-  segs: list[str] = []
-  for root in LOCAL_LOG_ROOTS:
-    segs += glob.glob(os.path.join(os.path.expanduser(root), f"{route}--*", "rlog.zst"))
-  # sort by numeric segment index
-  return sorted(segs, key=lambda p: int(os.path.basename(os.path.dirname(p)).rsplit("--", 1)[1]))
+  return logio.resolve_segments(route, missing_ok=True)
 
 
 def load_route(route: str) -> dict[str, np.ndarray]:
@@ -104,39 +91,17 @@ def load_route(route: str) -> dict[str, np.ndarray]:
   paths = rlog_paths(route)
   if not paths:
     raise SystemExit(f"no rlog.zst found locally for route {route} (expected under {' or '.join(LOCAL_LOG_ROOTS)})")
-  lr = LogReader(paths, sort_by_time=True)
-
-  cs_t, tau, rate, angle, pressed, vego = [], [], [], [], [], []
-  cc_t, cc_lat = [], []
-  for msg in lr:
-    w = msg.which()
-    if w == "carState":
-      cs = msg.carState
-      cs_t.append(msg.logMonoTime)
-      tau.append(cs.steeringTorque)
-      rate.append(cs.steeringRateDeg)
-      angle.append(cs.steeringAngleDeg)
-      pressed.append(cs.steeringPressed)
-      vego.append(cs.vEgo)
-    elif w == "carControl":
-      cc_t.append(msg.logMonoTime)
-      cc_lat.append(bool(msg.carControl.latActive))
-
-  cs_t = np.array(cs_t, dtype=np.float64) * 1e-9
-  out = dict(t=cs_t,
-             tau=np.array(tau, dtype=np.float64),
-             rate=np.array(rate, dtype=np.float64),
-             angle=np.array(angle, dtype=np.float64),
-             pressed=np.array(pressed, dtype=bool),
-             vego=np.array(vego, dtype=np.float64))
-  # align latActive (zero-order hold of most-recent carControl) onto carState timeline
-  if cc_t:
-    cc_t = np.array(cc_t, dtype=np.float64) * 1e-9
-    cc_lat = np.array(cc_lat, dtype=bool)
-    idx = np.searchsorted(cc_t, cs_t, side="right") - 1
-    out["lat"] = np.where(idx >= 0, cc_lat[np.clip(idx, 0, len(cc_lat) - 1)], False)
-  else:
-    out["lat"] = np.zeros_like(cs_t, dtype=bool)
+  sig = logio.read_signals(paths)   # decoded once + cached; carStateSP is decoded too (serves analyze_shadow)
+  cs = sig["carState"]
+  out = dict(t=cs["t"],
+             tau=cs["steeringTorque"],
+             rate=cs["steeringRateDeg"],
+             angle=cs["steeringAngleDeg"],
+             pressed=cs["steeringPressed"],
+             vego=cs["vEgo"])
+  # align latActive (zero-order hold of most-recent carControl) onto carState timeline;
+  # fill=False reproduces the old pre-first-sample / missing-carControl behavior exactly.
+  out["lat"] = logio.zoh_align(sig["carControl"]["t"], sig["carControl"]["latActive"], cs["t"], fill=False)
   out["route"] = route
   return out
 

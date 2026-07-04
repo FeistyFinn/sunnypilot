@@ -31,7 +31,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import glob
 import os
 import sys
 
@@ -47,10 +46,10 @@ except ModuleNotFoundError:
 
 import numpy as np
 
-from openpilot.tools.lib.logreader import LogReader
+from openpilot.tools.sunnypilot.vtb import logio
+from openpilot.tools.sunnypilot.vtb.vtb_constants import DEADZONE_NM, LOCAL_LOG_ROOTS
 
-DEADZONE_NM = 0.5          # STEER_OVERRIDE_MIN_TORQUE
-DEFAULT_DIR = "~/.comma/media/0/realdata"
+DEFAULT_DIR = LOCAL_LOG_ROOTS[0]   # single local root; DEADZONE_NM re-exported (transcribe imports it)
 
 
 def deadzone(x: np.ndarray, dz: float = DEADZONE_NM) -> np.ndarray:
@@ -59,54 +58,30 @@ def deadzone(x: np.ndarray, dz: float = DEADZONE_NM) -> np.ndarray:
 
 
 def find_routes(root: str, routes: list[str] | None) -> dict[str, list[str]]:
-  root = os.path.expanduser(root)
-  out: dict[str, list[str]] = {}
-  for seg in glob.glob(os.path.join(root, "*--*--*")):
-    rlog = os.path.join(seg, "rlog.zst")
-    if not os.path.exists(rlog):
-      continue
-    name = os.path.basename(seg).rsplit("--", 1)[0]
-    if routes and name not in routes:
-      continue
-    out.setdefault(name, []).append(rlog)
-  for name in out:
-    out[name].sort(key=lambda p: int(os.path.basename(os.path.dirname(p)).rsplit("--", 1)[1]))
-  return dict(sorted(out.items()))
+  return logio.group_routes(roots=(root,), routes_filter=routes)
 
 
-# carStateSP.coopSteering columns, in fixed order for the row arrays
+# carStateSP.coopSteering columns in fixed order (the POOLED concat relies on this key set)
 _COLS = ("t", "coop", "comp", "shadow", "alpha", "tau_inertia", "tau_intent", "j_used", "angle_override")
 
 
 def load_route(paths: list[str]) -> dict[str, np.ndarray]:
-  lr = LogReader(paths, sort_by_time=True)
-  rows = []   # one tuple per carStateSP frame, ordered like _COLS
-  cs = []     # (logMonoTime, vEgo) per carState frame
-  for msg in lr:
-    w = msg.which()
-    if w == "carStateSP":
-      c = msg.carStateSP.coopSteering
-      rows.append((msg.logMonoTime, c.coopActive, c.inertiaCompActive, c.shadowActive,
-                   c.alphaFilt, c.tauInertia, c.tauIntent, c.inertiaJUsed, c.angleOverride))
-    elif w == "carState":
-      cs.append((msg.logMonoTime, msg.carState.vEgo))
-
-  arr = np.array(rows, dtype=np.float64) if rows else np.zeros((0, len(_COLS)), dtype=np.float64)
-  d = {name: arr[:, i] for i, name in enumerate(_COLS)}
-  d["t"] = d["t"] * 1e-9
-  for b in ("coop", "comp", "shadow"):
-    d[b] = d[b].astype(bool)
+  sig = logio.read_signals(paths)   # decoded once + cached (one signals.npz shared with fit_steer_inertia)
+  c = sig["carStateSP"]
+  d = {
+    "t": c["t"],
+    "coop": c["coopSteering.coopActive"],
+    "comp": c["coopSteering.inertiaCompActive"],
+    "shadow": c["coopSteering.shadowActive"],
+    "alpha": c["coopSteering.alphaFilt"],
+    "tau_inertia": c["coopSteering.tauInertia"],
+    "tau_intent": c["coopSteering.tauIntent"],
+    "j_used": c["coopSteering.inertiaJUsed"],
+    "angle_override": c["coopSteering.angleOverride"],
+  }
   d["tau_raw"] = d["tau_intent"] + d["tau_inertia"]   # reconstruct raw driver torque
-
-  # align vEgo (nearest prior carState sample)
-  if cs and len(d["t"]):
-    csa = np.array(cs, dtype=np.float64)
-    cs_t = csa[:, 0] * 1e-9
-    cs_v = csa[:, 1]
-    idx = np.clip(np.searchsorted(cs_t, d["t"], side="right") - 1, 0, len(cs_v) - 1)
-    d["vego"] = cs_v[idx]
-  else:
-    d["vego"] = np.zeros_like(d["t"])
+  # align vEgo (nearest prior carState sample; clamp pre-start to the first sample — old behavior)
+  d["vego"] = logio.zoh_align(sig["carState"]["t"], sig["carState"]["vEgo"], d["t"], fill=None)
   return d
 
 
