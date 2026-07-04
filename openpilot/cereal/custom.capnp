@@ -447,6 +447,7 @@ struct CarStateSP @0xb86e6369214c01c8 {
     tauIntent @5 :Float32;        # Nm - measured driver torque minus the inertial ghost
     inertiaJUsed @6 :Float32;     # kg*m^2 - clamped J actually used by the FF
     angleOverride @7 :Float32;    # deg - cooperative-steering angle offset applied
+    blendedAngleDeg @8 :Float32;  # deg - final delivered angle (planner + override, post-saturation)
   }
 }
 
