@@ -1,0 +1,107 @@
+# Lean, fork-local CI for the VTB port.
+#
+# This is ADDITIVE (not in upstream sunnypilot) so it is not a /vtb-sync
+# conflict hotspot. It runs only the jobs that give meaningful signal on
+# stock GitHub runners — lint, unit tests, and the opendbc Tesla safety
+# suite (the real gate, which the upstream tests.yaml does not run).
+#
+# The heavy/infra-bound jobs in tests.yaml (build release, build macOS,
+# UI report, process replay, simulator driving) need comma's self-hosted
+# runners or flake on the stock-runner vendored-lib guard; they are NOT
+# the day-to-day signal for this fork. Use tests.yaml only for occasional
+# full validation via workflow_dispatch.
+name: vtb-ci
+
+on:
+  push:
+    branches:
+      - 'vtb-**'
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: vtb-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: 1
+  PYTHONPATH: ${{ github.workspace }}
+  PYTEST: pytest --continue-on-collection-errors --durations=0 -n logical
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+      # retry-wrap setup: the vendored-dependency install occasionally flakes
+      # on stock runners (the x264/avformat "non-vendored library" red).
+      - name: Setup
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4.0.0 (Node24)
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          command: ./tools/op.sh setup
+      - name: Static analysis
+        timeout-minutes: 2
+        run: scripts/lint/lint.sh
+
+  unit_tests:
+    name: unit tests
+    runs-on: ubuntu-24.04
+    # BLOCKING gate. The build is green again — the earlier upstream
+    # x264/SConstruct:73 vendored-library breakage (scons: *** Unexpected
+    # non-vendored library 'x264') has been fixed, so continue-on-error is gone.
+    # The ~12-min scons build + not-slow suite runs on pull_request / workflow_dispatch,
+    # and on EVERY push to the PUBLIC repo (FeistyFinn/sunnypilot — Actions are free there,
+    # so each /vtb-publish gets a full build+test). On the PRIVATE dev repo it stays gated
+    # off push to conserve free-tier Actions minutes; lint + tesla safety carry every push.
+    # Run on demand:  gh workflow run vtb-ci.yaml --ref vtb-port
+    if: github.event_name != 'push' || github.repository == 'FeistyFinn/sunnypilot'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+      - name: Getting LFS files
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4.0.0 (Node24)
+        with:
+          timeout_minutes: 3
+          max_attempts: 3
+          command: git lfs pull
+      - name: Setup
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4.0.0 (Node24)
+        with:
+          timeout_minutes: 15
+          max_attempts: 3
+          command: ./tools/op.sh setup
+      - name: Build openpilot
+        run: scons
+      - name: Run unit tests
+        timeout-minutes: 20
+        run: |
+          source selfdrive/test/setup_xvfb.sh
+          # Pre-compile Python bytecode so each pytest worker doesn't need to
+          $PYTEST --collect-only -m 'not slow' -qq
+          MAX_EXAMPLES=1 $PYTEST -m 'not slow'
+
+  tesla_safety:
+    name: tesla safety
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+      - name: Install uv
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0 (Node24)
+      # Lightweight safety run per the project docs: its own venv, bypass the
+      # superproject pytest config; libsafety compiles safety.c via cc,
+      # no scons needed.
+      - name: Run opendbc safety suite
+        timeout-minutes: 10
+        working-directory: opendbc_repo
+        run: |
+          uv venv
+          uv pip install -e . numpy cffi pytest pytest-xdist
+          PYTHONPATH=$(pwd) .venv/bin/python -m pytest opendbc/safety/tests/ -c /dev/null --noconftest -q
