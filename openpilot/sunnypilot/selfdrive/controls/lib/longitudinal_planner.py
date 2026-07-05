@@ -102,6 +102,8 @@ class LongitudinalPlannerSP:
     sccVision.state = self.scc.vision.state
     sccVision.vTarget = float(self.scc.vision.output_v_target)
     sccVision.aTarget = float(self.scc.vision.output_a_target)
+    # `currentLateralAccel` is a legacy field name; it now carries the DESIRED lateral accel
+    # (v_ego^2 * |desiredCurvature|) that drives the turning-decel lookup, not the measured value.
     sccVision.currentLateralAccel = float(self.scc.vision.desired_lat_acc)
     sccVision.maxPredictedLateralAccel = float(self.scc.vision.max_pred_lat_acc)
     sccVision.enabled = self.scc.vision.is_enabled
