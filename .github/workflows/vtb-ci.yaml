@@ -2,8 +2,10 @@
 #
 # This is ADDITIVE (not in upstream sunnypilot) so it is not a /vtb-sync
 # conflict hotspot. It runs only the jobs that give meaningful signal on
-# stock GitHub runners — lint, unit tests, and the opendbc Tesla safety
-# suite (the real gate, which the upstream tests.yaml does not run).
+# stock GitHub runners — lint, unit tests, the opendbc Tesla safety suite
+# (the real gate, which the upstream tests.yaml does not run), and a build
+# of the forked panda firmware (the wake-on-can consumer — the superproject
+# scons build never compiles panda FW).
 #
 # The heavy/infra-bound jobs in tests.yaml (build release, build macOS,
 # UI report, process replay, simulator driving) need comma's self-hosted
@@ -105,3 +107,32 @@ jobs:
           uv venv
           uv pip install -e . numpy cffi pytest pytest-xdist
           PYTHONPATH=$(pwd) .venv/bin/python -m pytest opendbc/safety/tests/ -c /dev/null --noconftest -q
+
+  panda_build:
+    name: panda firmware build
+    runs-on: ubuntu-24.04
+    # Builds the forked panda firmware (the wake-on-can consumer in board/main.c +
+    # board/drivers/drivers.h). The superproject scons build never compiles panda FW,
+    # so this is the ONLY CI coverage of the panda VTB delta. Heavy (arm toolchain +
+    # scons), so it follows the unit_tests cost model: skipped on pushes to the PRIVATE
+    # dev repo (billed free-tier minutes), run on pull_request / workflow_dispatch and on
+    # every push to the PUBLIC repo. continue-on-error until the toolchain setup is proven
+    # green on stock runners — flip to blocking (remove continue-on-error) after the first
+    # green dispatch:  gh workflow run vtb-ci.yaml --ref vtb-port
+    if: github.event_name != 'push' || github.repository == 'FeistyFinn/sunnypilot'
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+      - name: Setup panda deps
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4.0.0 (Node24)
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          command: cd panda && ./setup.sh
+      - name: Build panda firmware (debug FW)
+        working-directory: panda
+        run: |
+          source .venv/bin/activate
+          scons -j$(nproc)
