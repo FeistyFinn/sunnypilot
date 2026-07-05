@@ -113,14 +113,11 @@ jobs:
     runs-on: ubuntu-24.04
     # Builds the forked panda firmware (the wake-on-can consumer in board/main.c +
     # board/drivers/drivers.h). The superproject scons build never compiles panda FW,
-    # so this is the ONLY CI coverage of the panda VTB delta. Heavy (arm toolchain +
-    # scons), so it follows the unit_tests cost model: skipped on pushes to the PRIVATE
-    # dev repo (billed free-tier minutes), run on pull_request / workflow_dispatch and on
-    # every push to the PUBLIC repo. continue-on-error until the toolchain setup is proven
-    # green on stock runners — flip to blocking (remove continue-on-error) after the first
-    # green dispatch:  gh workflow run vtb-ci.yaml --ref vtb-port
+    # so this is the ONLY CI coverage of the panda VTB delta. Follows the unit_tests cost
+    # model: skipped on pushes to the PRIVATE dev repo (billed free-tier minutes), run on
+    # pull_request / workflow_dispatch and on every push to the PUBLIC repo. Proven green
+    # on a 2026-07-05 workflow_dispatch (~38s: uv toolchain + scons), so it is BLOCKING.
     if: github.event_name != 'push' || github.repository == 'FeistyFinn/sunnypilot'
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v6
         with:
