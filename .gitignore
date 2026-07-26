@@ -95,10 +95,15 @@ build/
 .context/
 PLAN.md
 TASK.md
-CLAUDE.md
+the project docs
 SKILL.md
 
 ### JetBrains ###
 !.idea/customTargets.xml
 !.idea/tools/*
 !.run/*
+
+# VTB: regenerable DevUI preview renders. *.png is LFS-tracked (.gitattributes) and this
+# fork's LFS store is upstream sunnypilot's read-only GitLab (.lfsconfig), so any new PNG
+# is unpushable. Regenerate with tools/sunnypilot/vtb/preview_devui.py instead.
+notes/preview/
