@@ -7,7 +7,7 @@ device_health.meta.json), and aggregates per-route-first, then across routes. Re
 present, else qlog (24x smaller, pulled over LTE for a device-health-only refresh); every service
 it needs is in both EXCEPT modelV2 (rlog-only), so model-loop timing reads '-' on qlog routes.
 
-Design constraints (validated against source + real rlogs; see notes/vtb-device-health-*.md):
+Design constraints (validated against source + real rlogs):
  - Data is ONROAD-ONLY: loggerd runs only while `deviceState.started` is True, so there is no
    offroad/idle population and no ambient sensor on the comma 3X (intakeTempC reads 0.0). The
    thermal verdict is therefore ambient-INDEPENDENT: the device's own thermalStatus bands +
