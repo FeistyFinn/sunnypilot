@@ -1,8 +1,15 @@
 {
   "recommendations": [
-    "ms-python.python",
-    "ms-vscode.cpptools",
+    "ms-python.python",                       // Python + Pylance + debugpy
+    "charliermarsh.ruff",                     // linter/formatter (matches op lint)
+    "llvm-vs-code-extensions.vscode-clangd",  // C/C++ IntelliSense via compile_commands.json
+    "ms-vscode.cpptools",                     // kept for the cppdbg debugger (IntelliSense disabled in settings)
+    "vadimcn.vscode-lldb",                    // CodeLLDB — required by launch.json "type": "lldb"
+    "xmonader.vscode-capnp",                  // cereal *.capnp highlighting
+    "lharri73.dbc",                           // opendbc *.dbc (tesla_model3_party.dbc) + message preview
+    "tamasfe.even-better-toml",               // pyproject.toml editing
+    "redhat.vscode-yaml",                     // .github/workflows, cereal/services YAML
+    "EditorConfig.EditorConfig",              // honor the repo .editorconfig
     "elagil.pre-commit-helper",
-    "charliermarsh.ruff",
   ]
 }
