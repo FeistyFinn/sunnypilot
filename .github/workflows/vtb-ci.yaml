@@ -141,8 +141,21 @@ jobs:
           timeout_minutes: 10
           max_attempts: 3
           command: cd panda && ./setup.sh
+      # panda's SConscript does `import opendbc` and builds with `opendbc.INCLUDE_PATH`, so the
+      # firmware links against WHICHEVER opendbc is importable. panda's own pyproject pins
+      # sunnypilot/opendbc@master, which does NOT define `wake_on_can` -- that symbol lives in this
+      # fork's opendbc/safety/ignition.h, and board/main.c references it.
+      #
+      # This used to work by accident: the workflow-level PYTHONPATH is the repo root, and the
+      # pre-#38219 root carried an `opendbc -> opendbc_repo` symlink, so `import opendbc` found our
+      # fork. Upstream's directory move deleted all five root symlinks, so the import silently fell
+      # through to panda's venv copy and main.elf stopped linking. Point PYTHONPATH at the submodule
+      # explicitly rather than relying on a symlink that no longer exists.
       - name: Build panda firmware (debug FW)
         working-directory: panda
+        env:
+          PYTHONPATH: ${{ github.workspace }}/opendbc_repo
         run: |
           source .venv/bin/activate
+          python3 -c "import opendbc; print('opendbc INCLUDE_PATH:', opendbc.INCLUDE_PATH)"
           scons -j$(nproc)
