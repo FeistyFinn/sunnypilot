@@ -24,6 +24,12 @@ def _gui_app():
     gui_app.close()
 
 
+class _FakeCPSP:
+  """Minimal stand-in for CarParamsSP -- update_settings() only reads .flags."""
+  def __init__(self, flags: int):
+    self.flags = flags
+
+
 def test_coop_steering_toggle_wired_to_param():
   """The Cooperative Steering toggle must write the exact param the opendbc Tesla interface
   reads (TeslaCoopSteering) to set the CP_SP COOP_STEERING flag. If this drifts, the on-device
@@ -33,21 +39,57 @@ def test_coop_steering_toggle_wired_to_param():
   settings = TeslaSettings()
   assert settings.items == [
     settings.coop_steering_toggle,
-    settings.mads_toggle_fingers_item,
+    settings.mads_screen_button,
   ]
   assert settings.coop_steering_toggle.action_item.toggle.param_key == "TeslaCoopSteering"
 
 
-def test_mads_toggle_fingers_wired_to_param():
-  """The MADS-toggle finger count picker must write TeslaInfotainmentMadsToggleFingers -- the
-  param the opendbc Tesla interface reads to set the CP_SP MADS_TOGGLE_FINGERS_* flag bits."""
+def test_mads_screen_button_wired_to_param():
+  """The picker must write TeslaMadsScreenButton -- the param the opendbc Tesla interface reads to
+  set the CP_SP MADS_SCREEN_BUTTON_*_FINGER flag + safetyParam bits."""
   from openpilot.selfdrive.ui.sunnypilot.layouts.settings.vehicle.brands.tesla import TeslaSettings
 
   settings = TeslaSettings()
-  option = settings.mads_toggle_fingers_item.action_item
-  assert option.param_key == "TeslaInfotainmentMadsToggleFingers"
-  assert option.min_value == 3
-  assert option.max_value == 5
+  action = settings.mads_screen_button.action_item
+  assert action.param_key == "TeslaMadsScreenButton"
+  assert len(action.buttons) == 4
+
+
+def test_mads_screen_button_index_matches_enum_ordinal():
+  """LOAD-BEARING: MultipleButtonActionSP writes the selected button INDEX straight to the param,
+  and opendbc reads that int as a MadsScreenButtonType ordinal. So button order must equal enum
+  order -- reordering the buttons would silently remap every user's setting."""
+  from opendbc.sunnypilot.car.tesla.values import MadsScreenButtonType
+  from openpilot.selfdrive.ui.sunnypilot.layouts.settings.vehicle.brands.tesla import TeslaSettings
+
+  labels = [b() if callable(b) else b for b in TeslaSettings().mads_screen_button.action_item.buttons]
+  assert labels[MadsScreenButtonType.OFF] == "Off"
+  assert labels[MadsScreenButtonType.THREE_FINGER] == "3 Finger"
+  assert labels[MadsScreenButtonType.FOUR_FINGER] == "4 Finger"
+  assert labels[MadsScreenButtonType.FIVE_FINGER] == "5 Finger"
+
+
+def test_mads_screen_button_hidden_without_vehicle_bus(monkeypatch):
+  """The infotainment gesture only exists on cars wired with the deprecated Tesla harness, so the
+  picker is hidden unless CP_SP reports HAS_VEHICLE_BUS. CP_SP is None until a car has been seen."""
+  from opendbc.sunnypilot.car.tesla.values import TeslaFlagsSP
+  from openpilot.selfdrive.ui.sunnypilot.layouts.settings.vehicle.brands.tesla import TeslaSettings
+  from openpilot.selfdrive.ui.ui_state import ui_state
+
+  settings = TeslaSettings()
+  monkeypatch.setattr(ui_state, "is_offroad", lambda: True)
+
+  monkeypatch.setattr(ui_state, "CP_SP", None, raising=False)
+  settings.update_settings()
+  assert not settings.mads_screen_button.is_visible
+
+  monkeypatch.setattr(ui_state, "CP_SP", _FakeCPSP(TeslaFlagsSP.COOP_STEERING), raising=False)
+  settings.update_settings()
+  assert not settings.mads_screen_button.is_visible
+
+  monkeypatch.setattr(ui_state, "CP_SP", _FakeCPSP(TeslaFlagsSP.HAS_VEHICLE_BUS), raising=False)
+  settings.update_settings()
+  assert settings.mads_screen_button.is_visible
 
 
 def test_update_settings_locks_toggle_onroad(monkeypatch):
@@ -62,9 +104,9 @@ def test_update_settings_locks_toggle_onroad(monkeypatch):
   monkeypatch.setattr(ui_state, "is_offroad", lambda: True)
   settings.update_settings()
   assert settings.coop_steering_toggle.action_item.enabled
-  assert settings.mads_toggle_fingers_item.action_item.enabled
+  assert settings.mads_screen_button.action_item.enabled
 
   monkeypatch.setattr(ui_state, "is_offroad", lambda: False)
   settings.update_settings()
   assert not settings.coop_steering_toggle.action_item.enabled
-  assert not settings.mads_toggle_fingers_item.action_item.enabled
+  assert not settings.mads_screen_button.action_item.enabled

@@ -224,7 +224,11 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"SubaruStopAndGoManualParkingBrake", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"TeslaCoopSteering", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"TeslaCoopSteeringInertiaJ", {PERSISTENT | BACKUP, FLOAT, "0.08"}},
-    {"TeslaInfotainmentMadsToggleFingers", {PERSISTENT | BACKUP, INT, "5"}},
+    // MadsScreenButtonType ORDINAL (0=Off, 1=3-finger, 2=4-finger, 3=5-finger) -- not a finger count.
+    // Default 3 (=FIVE_FINGER) is a VTB divergence from upstream's 1: this fork matches the touch count
+    // with `>=`, so a lower setting also grants on higher-finger gestures. Must stay in step with the
+    // params_dict fallback in opendbc's _initialize_tesla_mads_screen_button.
+    {"TeslaMadsScreenButton", {PERSISTENT | BACKUP, INT, "3"}},
     {"ToyotaEnforceStockLongitudinal", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"ToyotaStopAndGoHack", {PERSISTENT | BACKUP, BOOL, "0"}},
 

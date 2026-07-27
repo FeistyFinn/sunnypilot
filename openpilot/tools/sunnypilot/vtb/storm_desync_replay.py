@@ -22,10 +22,10 @@ and there is no sustained desync window. Run it for N in {3,4,5} and on today's 
 
 Build/deps: the safety lib compiles on macOS via the opendbc venv recipe (see the project docs):
   cd opendbc_repo && uv venv && uv pip install -e . numpy cffi pytest pytest-xdist
-  PYTHONPATH=$(pwd) .venv/bin/python ../tools/sunnypilot/vtb/storm_desync_replay.py <seg> [<seg> ...] [--fingers 3]
+  PYTHONPATH=$(pwd) .venv/bin/python ../openpilot/tools/sunnypilot/vtb/storm_desync_replay.py <seg> [<seg> ...] [--fingers 3]
 On the device:
   PYTHONPATH=/data/openpilot /usr/local/venv/bin/python \
-    /data/openpilot/tools/sunnypilot/vtb/storm_desync_replay.py /data/media/0/realdata/<route>--0 [...]
+    /data/openpilot/openpilot/tools/sunnypilot/vtb/storm_desync_replay.py /data/media/0/realdata/<route>--0 [...]
 """
 import os
 import sys
@@ -49,13 +49,15 @@ DESYNC_FAIL_FRAMES = 50
 
 
 def op_flags(fingers: int) -> int:
-  return TeslaFlagsSP.HAS_VEHICLE_BUS.value | {4: TeslaFlagsSP.MADS_TOGGLE_FINGERS_4.value,
-                                               5: TeslaFlagsSP.MADS_TOGGLE_FINGERS_5.value}.get(fingers, 0)
+  return TeslaFlagsSP.HAS_VEHICLE_BUS.value | {3: TeslaFlagsSP.MADS_SCREEN_BUTTON_3_FINGER.value,
+                                               4: TeslaFlagsSP.MADS_SCREEN_BUTTON_4_FINGER.value,
+                                               5: TeslaFlagsSP.MADS_SCREEN_BUTTON_5_FINGER.value}.get(fingers, 0)
 
 
 def sp_safety_param(fingers: int) -> int:
-  return TeslaSafetyFlagsSP.HAS_VEHICLE_BUS | {4: TeslaSafetyFlagsSP.MADS_TOGGLE_FINGERS_4,
-                                               5: TeslaSafetyFlagsSP.MADS_TOGGLE_FINGERS_5}.get(fingers, 0)
+  return TeslaSafetyFlagsSP.HAS_VEHICLE_BUS | {3: TeslaSafetyFlagsSP.MADS_SCREEN_BUTTON_3_FINGER,
+                                               4: TeslaSafetyFlagsSP.MADS_SCREEN_BUTTON_4_FINGER,
+                                               5: TeslaSafetyFlagsSP.MADS_SCREEN_BUTTON_5_FINGER}.get(fingers, 0)
 
 
 def new_ext(fingerprint: str, fingers: int) -> CarStateExt:

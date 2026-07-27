@@ -17,13 +17,14 @@ subtle one on the highway, with no gain tables to maintain.
   openpilot's path; lateral stays active for nudges below the hands-on / hard-yank limits.
 - **Speed-aware stiffness, for free** — the torque-to-angle gain falls out of the bicycle model
   (`κ = a_lat / v²`), so authority shrinks ≈ 1/v² as you speed up. No separate low/high-speed modes.
-- **MADS N-finger engagement** — toggle steering engagement by tapping the infotainment screen with a
-  configurable number of fingers (3 / 4 / 5), with a fix for the finger-count desync that caused
-  "TAKE CONTROL IMMEDIATELY" storms.
+- **MADS screen button** — toggle steering engagement by tapping the infotainment screen with a
+  configurable number of fingers (Off / 3 / 4 / 5), with a fix for the finger-count desync that caused
+  "TAKE CONTROL IMMEDIATELY" storms. The count is a floor, so a lower setting also engages on
+  higher-finger gestures.
 - **Cooperative longitudinal** — a tap on the accelerator doesn't kill ACC; longitudinal blends the
   same way steering does (brake still disengages).
 - **Shadow-mode inertia compensation** — a steering-inertia feed-forward term is computed and logged
-  every frame for offline tuning, but never steers (yet). Offline tooling under `tools/sunnypilot/vtb/`.
+  every frame for offline tuning, but never steers (yet). Offline tooling under `openpilot/tools/sunnypilot/vtb/`.
 
 ## ✅ Requirements
 
@@ -33,7 +34,8 @@ subtle one on the highway, with no gain tables to maintain.
 ## 🚀 Enabling it
 
 1. **Settings → Vehicle → Tesla → Cooperative Steering** (the toggle is editable **offroad only**).
-2. Optionally set **MADS Toggle Touch Points** (3 / 4 / 5 fingers; default 5).
+2. Optionally set **MADS Screen Button** (Off / 3 / 4 / 5 fingers; default 5 fingers). This setting
+   only appears on cars wired with the deprecated Tesla harness.
 3. The setting is read at car-init, so it takes effect on the **next ignition / drive cycle**.
 
 Full enable steps, the algorithm deep-dive, the safety model, and the tuning guide:

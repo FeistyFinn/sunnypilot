@@ -19,7 +19,7 @@ A clean fix => CONTROL shows a thrash of lkas toggles (and/or unknown events); T
 one clean toggle per real gesture and never the thrash.
 
 Run on the device (build + deps live there):
-  PYTHONPATH=/data/openpilot /usr/local/venv/bin/python /data/openpilot/tools/sunnypilot/vtb/storm_button_replay.py \
+  PYTHONPATH=/data/openpilot /usr/local/venv/bin/python /data/openpilot/openpilot/tools/sunnypilot/vtb/storm_button_replay.py \
       /data/media/0/realdata/ROUTE_ID--0 \
       /data/media/0/realdata/ROUTE_ID--1 \
       /data/media/0/realdata/ROUTE_ID--2
@@ -41,8 +41,9 @@ ButtonType = structs.CarState.ButtonEvent.Type
 def new_ext(fingerprint: str, fingers: int = 5) -> CarStateExt:
   cp_sp = structs.CarParamsSP()
   flags = TeslaFlagsSP.HAS_VEHICLE_BUS.value
-  flags |= {5: TeslaFlagsSP.MADS_TOGGLE_FINGERS_5.value,
-            4: TeslaFlagsSP.MADS_TOGGLE_FINGERS_4.value}.get(fingers, 0)
+  flags |= {3: TeslaFlagsSP.MADS_SCREEN_BUTTON_3_FINGER.value,
+            4: TeslaFlagsSP.MADS_SCREEN_BUTTON_4_FINGER.value,
+            5: TeslaFlagsSP.MADS_SCREEN_BUTTON_5_FINGER.value}.get(fingers, 0)
   cp_sp.flags = flags
   cp = structs.CarParams()
   cp.carFingerprint = fingerprint

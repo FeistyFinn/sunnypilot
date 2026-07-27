@@ -255,7 +255,7 @@ subtests as of this writing; boundary cases in `test_steering_wheel_torque_disen
 | Param | Type / default | Gating | Effect |
 | --- | --- | --- | --- |
 | `TeslaCoopSteering` | bool, `0` | offroad-only toggle | Master enable; sets `CP_SP.flags COOP_STEERING` (bit 2) at car-init. |
-| `TeslaInfotainmentMadsToggleFingers` | int, `5` (3 / 4 / 5) | offroad-only toggle | MADS infotainment-tap finger count; threaded to both openpilot (`flags`) and panda (`safetyParam`). See the wiki MADS page. |
+| `TeslaMadsScreenButton` | int enum, `3` = **5 fingers** (`0` Off / `1` 3 Finger / `2` 4 Finger / `3` 5 Finger) | offroad-only; shown only when `HAS_VEHICLE_BUS` is set | MADS infotainment screen-button gesture. The param holds a `MadsScreenButtonType` **ordinal, not a finger count** — the default `3` is a five-finger press. Threaded to both openpilot (`flags`, bits 4/8/16) and panda (`safetyParam`, bits 2/4/8) as three independent flags; no bit set = Off (panda holds the button `UNAVAILABLE`). The count is a **floor** (`>= N`), not an exact match. See the wiki MADS page. |
 | `TeslaCoopSteeringInertiaJ` | float, `0.0` → module default `0.08` (clamp `0.15`) | param only | Scales the **logged** inertia feed-forward only — **shadow-only, never steers.** See §8. |
 
 ## 8. Inertia compensation (shadow-only) and tuning
@@ -268,7 +268,7 @@ never applied to steering** — the live override always runs off raw measured t
 0.08 kg·m² (literature band 0.05–0.15), is hard-clamped at 0.15, and is field-tunable via
 `TeslaCoopSteeringInertiaJ`, which scales the *logged* term only. The live-apply path and its flag bit
 were removed pending a validated J; the offline fit consumes the logged telemetry
-(`tools/sunnypilot/vtb/fit_steer_inertia.py`).
+(`openpilot/tools/sunnypilot/vtb/fit_steer_inertia.py`).
 
 **Tunable steering constants** (top of `coop_steering.py`). VTB cannot escape
 `apply_steer_angle_limits_vm`, so a more aggressive setting only buys what the safety envelope allows:
@@ -316,8 +316,8 @@ algorithm.
 - Algorithm: `opendbc/sunnypilot/car/tesla/coop_steering.py`
 - Algorithm tests: `opendbc/sunnypilot/car/tesla/tests/test_coop_steering.py`
 - Flag / param plumbing: `opendbc/sunnypilot/car/interfaces.py` (`_initialize_coop_steering`,
-  `_initialize_tesla_infotainment_gesture`), flags in `opendbc/sunnypilot/car/tesla/values.py`
+  `_initialize_tesla_mads_screen_button`), flags in `opendbc/sunnypilot/car/tesla/values.py`
 - Car interface: `opendbc/car/tesla/{carcontroller,carstate,teslacan,values}.py`
 - Panda safety: `opendbc/safety/modes/tesla.h`; tests `opendbc/safety/tests/test_tesla.py`
-- Offline tooling: `tools/sunnypilot/vtb/` (`fit_steer_inertia.py`, `live_watch.py`,
+- Offline tooling: `openpilot/tools/sunnypilot/vtb/` (`fit_steer_inertia.py`, `live_watch.py`,
   `transcribe_events.py`, `analyze_shadow.py`)
