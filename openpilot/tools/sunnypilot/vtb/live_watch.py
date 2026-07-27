@@ -21,11 +21,11 @@ Two run modes:
        CPU from the control stack and can make openpilot disengage. Use --replay for analysis; --force
        only for an offroad bench. Runs at low priority (os.nice) as defense in depth.
          cd /data/openpilot && PYTHONPATH=/data:/data/openpilot \
-           /usr/local/venv/bin/python tools/sunnypilot/vtb/live_watch.py --both
+           /usr/local/venv/bin/python openpilot/tools/sunnypilot/vtb/live_watch.py --both
   --replay ROUTE|PATH (offline, on a laptop): replays a saved route's rlog through the SAME monitors
        (zero device load) and prints a summary. ROUTE is a route name resolved under
        ~/.comma/media/0/realdata, or an explicit rlog.zst / segment-dir path.
-         .venv/bin/python tools/sunnypilot/vtb/live_watch.py --both --replay ROUTE_ID
+         .venv/bin/python openpilot/tools/sunnypilot/vtb/live_watch.py --both --replay ROUTE_ID
 """
 from __future__ import annotations
 
@@ -324,7 +324,7 @@ def run_live(args, monitors: list[Monitor], services: list[str]) -> int:
   except OSError:
     pass
 
-  from cereal import messaging
+  from openpilot.cereal import messaging
   sm = messaging.SubMaster(services)
   emit(0.0, "", f"live_watch up: services={services}")
   t0 = time.monotonic()

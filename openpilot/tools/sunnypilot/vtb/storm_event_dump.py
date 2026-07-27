@@ -5,6 +5,7 @@ for what the 'severe error' actually was, instead of assuming controlsMismatchLa
 import sys
 import os
 from collections import defaultdict
+from typing import Any
 
 from opendbc.car import structs
 from openpilot.tools.lib.logreader import LogReader
@@ -14,8 +15,9 @@ ButtonType = structs.CarState.ButtonEvent.Type
 
 def main(seg_paths):
   t0 = None
-  ev = defaultdict(lambda: [0, None, None])      # onroadEvents name -> [count, first_t, last_t]
-  ev_sp = defaultdict(lambda: [0, None, None])   # onroadEventsSP name -> [count, first_t, last_t]
+  # list[Any]: the record is heterogeneous -- [int count, float|None first_t, float|None last_t]
+  ev: defaultdict[str, list[Any]] = defaultdict(lambda: [0, None, None])      # onroadEvents name -> record
+  ev_sp: defaultdict[str, list[Any]] = defaultdict(lambda: [0, None, None])   # onroadEventsSP name -> record
   alerts = []                                    # (t, alertText1, alertText2) on change
   last_alert = None
   btn_times = []                                 # (t, pressed, type) for non-empty carState.buttonEvents

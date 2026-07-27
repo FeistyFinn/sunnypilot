@@ -23,8 +23,8 @@ four compounding failure modes, not a measurement:
 
 Read-only and offline. Reuses fit_steer_inertia's loaders/masks verbatim so the funnels match.
 
-  python tools/sunnypilot/vtb/eval_inertia_physics.py                 # all local drives -> stdout
-  python tools/sunnypilot/vtb/eval_inertia_physics.py --out notes/vtb-inertia-physics-eval.md
+  python openpilot/tools/sunnypilot/vtb/eval_inertia_physics.py                 # all local drives -> stdout
+  python openpilot/tools/sunnypilot/vtb/eval_inertia_physics.py --out notes/vtb-inertia-physics-eval.md
 """
 from __future__ import annotations
 

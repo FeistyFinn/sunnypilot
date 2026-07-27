@@ -24,9 +24,9 @@ The telemetry is self-contained: the raw driver torque is reconstructed as
 for the FF analysis. vEgo (for speed context) is pulled from carState by nearest-time.
 
 Usage:
-  python tools/sunnypilot/vtb/analyze_shadow.py                       # all routes under the dir
-  python tools/sunnypilot/vtb/analyze_shadow.py --dir ~/.comma/media/0/realdata
-  python tools/sunnypilot/vtb/analyze_shadow.py --routes ROUTE_ID
+  python openpilot/tools/sunnypilot/vtb/analyze_shadow.py                       # all routes under the dir
+  python openpilot/tools/sunnypilot/vtb/analyze_shadow.py --dir ~/.comma/media/0/realdata
+  python openpilot/tools/sunnypilot/vtb/analyze_shadow.py --routes ROUTE_ID
 """
 from __future__ import annotations
 
@@ -187,7 +187,7 @@ def main():
   print("\n" + "=" * 88)
   print("Notes: J is hard to identify from normal driving (hands-off wheel accel is small); the")
   print("counterfactual above uses the on-device J. For a confident J fit do a targeted excitation")
-  print("drive and run /vtb-tune (tools/sunnypilot/vtb/fit_steer_inertia.py).")
+  print("drive and run /vtb-tune (openpilot/tools/sunnypilot/vtb/fit_steer_inertia.py).")
 
 
 if __name__ == "__main__":

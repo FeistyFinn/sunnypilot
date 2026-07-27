@@ -80,10 +80,16 @@ jobs:
           command: ./tools/op.sh setup
       - name: Build openpilot
         run: scons
+      # Upstream deleted selfdrive/test/setup_xvfb.sh and dropped the xvfb dependency; the
+      # raylib UI is now driven headless via RAYLIB_BACKEND. The headless backend links
+      # -lGLESv2 -lEGL, which stock GitHub runners do not ship (comma's Namespace runners do).
+      - name: Install raylib headless dependencies
+        run: sudo apt-get install -y --no-install-recommends libgles2 libegl1
       - name: Run unit tests
         timeout-minutes: 20
+        env:
+          RAYLIB_BACKEND: headless
         run: |
-          source selfdrive/test/setup_xvfb.sh
           # Pre-compile Python bytecode so each pytest worker doesn't need to
           $PYTEST --collect-only -m 'not slow' -qq
           MAX_EXAMPLES=1 $PYTEST -m 'not slow'
@@ -100,13 +106,20 @@ jobs:
       # Lightweight safety run per the project docs: its own venv, bypass the
       # superproject pytest config; libsafety compiles safety.c via cc,
       # no scons needed.
-      - name: Run opendbc safety suite
+      #
+      # BOTH paths are required. opendbc/safety/tests/ alone misses
+      # opendbc/sunnypilot/car/tesla/tests/test_carstate_ext.py — the openpilot-side twin of the
+      # MADS `data[3] >=` divergence. A flag rename breaks that file at COLLECTION time, which
+      # reads as "no tests ran" rather than a failure, so the narrow form silently stops
+      # guarding the storm fix.
+      - name: Run opendbc safety + Tesla suites
         timeout-minutes: 10
         working-directory: opendbc_repo
         run: |
           uv venv
           uv pip install -e . numpy cffi pytest pytest-xdist
-          PYTHONPATH=$(pwd) .venv/bin/python -m pytest opendbc/safety/tests/ -c /dev/null --noconftest -q
+          PYTHONPATH=$(pwd) .venv/bin/python -m pytest \
+            opendbc/safety/tests/ opendbc/sunnypilot/car/tesla/tests/ -c /dev/null --noconftest -q
 
   panda_build:
     name: panda firmware build

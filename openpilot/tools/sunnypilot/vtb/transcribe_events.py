@@ -31,9 +31,9 @@ Each carries `t` (seconds from the route's first logged message, matching live_w
 `mono` (raw logMonoTime ns, for exact ordering / cross-segment joins).
 
 Usage (OFFLINE, on the Mac -- never on a moving comma):
-  .venv/bin/python tools/sunnypilot/vtb/transcribe_events.py --routes ROUTE_ID
-  .venv/bin/python tools/sunnypilot/vtb/transcribe_events.py --all          # backfill every local drive
-  .venv/bin/python tools/sunnypilot/vtb/transcribe_events.py --routes <r> --force   # re-transcribe
+  .venv/bin/python openpilot/tools/sunnypilot/vtb/transcribe_events.py --routes ROUTE_ID
+  .venv/bin/python openpilot/tools/sunnypilot/vtb/transcribe_events.py --all          # backfill every local drive
+  .venv/bin/python openpilot/tools/sunnypilot/vtb/transcribe_events.py --routes <r> --force   # re-transcribe
 """
 from __future__ import annotations
 

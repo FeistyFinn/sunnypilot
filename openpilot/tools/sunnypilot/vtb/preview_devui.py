@@ -10,8 +10,8 @@ The repo's "UI not local-mac-runnable" note is about the scons font-atlas build,
 rendering: generate the atlases once with
     .venv/bin/python selfdrive/assets/fonts/process.py
 then run this from the repo root:
-    PYTHONPATH=$(pwd) .venv/bin/python tools/sunnypilot/vtb/preview_devui.py
-    WINDOWED=1 PYTHONPATH=$(pwd) .venv/bin/python tools/sunnypilot/vtb/preview_devui.py   # live window
+    PYTHONPATH=$(pwd) .venv/bin/python openpilot/tools/sunnypilot/vtb/preview_devui.py
+    WINDOWED=1 PYTHONPATH=$(pwd) .venv/bin/python openpilot/tools/sunnypilot/vtb/preview_devui.py   # live window
 
 PNGs land in notes/preview/.
 """
@@ -28,7 +28,7 @@ if not WINDOWED:
   rl.set_config_flags(rl.ConfigFlags.FLAG_WINDOW_HIDDEN)
   os.environ["OFFSCREEN"] = "1"  # raylib without an FPS limit (must be set before importing gui_app)
 
-from cereal import log
+from openpilot.cereal import log
 from openpilot.system.ui.lib.application import gui_app
 from openpilot.selfdrive.ui.ui_state import ui_state, device
 from openpilot.selfdrive.ui.sunnypilot.onroad.developer_ui import DeveloperUiRenderer, DeveloperUiState
@@ -176,7 +176,9 @@ def main() -> int:
     for name, sc in SCENARIOS.items():
       # Fresh renderer per scenario so the sticky coop gate + fit accumulator start clean.
       renderer = DeveloperUiRenderer()
-      ui_state.sm = FakeSubMaster(*build_messages(sc))
+      # Deliberate duck-typed double: FakeSubMaster implements only the SubMaster surface the
+      # renderer touches (__getitem__/valid/alive/updated/frame/recv_frame), with no msgq sockets.
+      ui_state.sm = FakeSubMaster(*build_messages(sc))  # ty: ignore[invalid-assignment]
 
       _draw(renderer, rect)                                  # 1st frame runs the session reset
       renderer.vtb_fit_elem._seconds = sc["fit_n"] / 100.0 + 1e-6  # exact FIT count for the shot

@@ -27,9 +27,9 @@ This recomputes alpha with the EXACT discretisation the FF uses (DT_LAT_CTRL +
 FirstOrderFilter) so the fitted J transfers 1:1 to coop_steering.py.
 
 Usage:
-  python tools/sunnypilot/vtb/fit_steer_inertia.py                 # both of today's drives
-  python tools/sunnypilot/vtb/fit_steer_inertia.py --routes ROUTE_ID
-  python tools/sunnypilot/vtb/fit_steer_inertia.py --rc 0.03 0.04 0.05   # sweep the LPF RC
+  python openpilot/tools/sunnypilot/vtb/fit_steer_inertia.py                 # both of today's drives
+  python openpilot/tools/sunnypilot/vtb/fit_steer_inertia.py --routes ROUTE_ID
+  python openpilot/tools/sunnypilot/vtb/fit_steer_inertia.py --rc 0.03 0.04 0.05   # sweep the LPF RC
 """
 from __future__ import annotations
 
@@ -37,6 +37,7 @@ import argparse
 import math
 import os
 import sys
+from typing import Any
 
 # --- bootstrap: make 'openpilot' resolve to this repo root regardless of dir name ---
 _REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
@@ -86,19 +87,21 @@ def rlog_paths(route: str) -> list[str]:
   return logio.resolve_segments(route, missing_ok=True)
 
 
-def load_route(route: str) -> dict[str, np.ndarray]:
-  """Extract time-aligned carState + latActive at carState's native 100 Hz."""
+def load_route(route: str) -> dict[str, Any]:
+  """Extract time-aligned carState + latActive at carState's native 100 Hz.
+  Heterogeneous by design: every key is an ndarray except "route", which carries the route name
+  through to fit_report's label -- hence dict[str, Any] rather than dict[str, np.ndarray]."""
   paths = rlog_paths(route)
   if not paths:
     raise SystemExit(f"no rlog.zst found locally for route {route} (expected under {' or '.join(LOCAL_LOG_ROOTS)})")
   sig = logio.read_signals(paths)   # decoded once + cached; carStateSP is decoded too (serves analyze_shadow)
   cs = sig["carState"]
-  out = dict(t=cs["t"],
-             tau=cs["steeringTorque"],
-             rate=cs["steeringRateDeg"],
-             angle=cs["steeringAngleDeg"],
-             pressed=cs["steeringPressed"],
-             vego=cs["vEgo"])
+  out = {"t": cs["t"],
+         "tau": cs["steeringTorque"],
+         "rate": cs["steeringRateDeg"],
+         "angle": cs["steeringAngleDeg"],
+         "pressed": cs["steeringPressed"],
+         "vego": cs["vEgo"]}
   # align latActive (zero-order hold of most-recent carControl) onto carState timeline;
   # fill=False reproduces the old pre-first-sample / missing-carControl behavior exactly.
   out["lat"] = logio.zoh_align(sig["carControl"]["t"], sig["carControl"]["latActive"], cs["t"], fill=False)
@@ -116,14 +119,15 @@ def contiguous_runs(t: np.ndarray) -> list[tuple[int, int]]:
   return [(s, e) for s, e in zip(starts, ends, strict=True) if e - s >= 3]
 
 
-def resample_and_alpha(d: dict, rc: float) -> dict[str, np.ndarray]:
+def resample_and_alpha(d: dict, rc: float) -> dict[str, Any]:
   """Resample onto a uniform DT_LAT_CTRL grid per contiguous run. Computes BOTH:
    - `alpha`       : the FF's CAUSAL alpha (diff(rate)/dt -> LPF -> radians), bit-identical to
                      coop_steering.py so the legacy fit transfers 1:1 to the live FF; and
    - `alpha_clean` : a ZERO-PHASE alpha (Savitzky-Golay 2nd derivative of the angle), much less
                      noisy, used by the v2 estimator to dodge errors-in-variables attenuation.
   Also returns `run_bounds` (index ranges into the concatenated arrays for each contiguous time-run)
-  so the spectral impedance estimator can window over genuinely continuous stretches."""
+  so the spectral impedance estimator can window over genuinely continuous stretches. `run_bounds` is
+  a list of (start, end) tuples, not an array -- that is what makes the seg dict heterogeneous."""
   cols = {k: [] for k in ("tau", "rate", "angle", "vego", "alpha", "alpha_clean", "pressed", "lat")}
   run_lens = []
   for s, e in contiguous_runs(d["t"]):
@@ -161,10 +165,10 @@ def resample_and_alpha(d: dict, rc: float) -> dict[str, np.ndarray]:
   if not cols["tau"]:
     # keep the boolean signals bool-typed: a float64 np.array([]) breaks `~pressed` in id_mask_handsoff
     # and, when concatenated with a valid route's bool arrays, silently coerces them to float too.
-    out = {k: np.array([], dtype=bool if k in ("pressed", "lat") else float) for k in cols}
-    out["run_bounds"] = []
-    return out
-  out = {k: np.concatenate(v) for k, v in cols.items()}
+    empty: dict[str, Any] = {k: np.array([], dtype=bool if k in ("pressed", "lat") else float) for k in cols}
+    empty["run_bounds"] = []
+    return empty
+  out: dict[str, Any] = {k: np.concatenate(v) for k, v in cols.items()}
   bounds, off = [], 0
   for length in run_lens:
     bounds.append((off, off + length))
@@ -173,12 +177,12 @@ def resample_and_alpha(d: dict, rc: float) -> dict[str, np.ndarray]:
   return out
 
 
-def pool_segs(segs: list[dict]) -> dict:
+def pool_segs(segs: list[dict]) -> dict[str, Any]:
   """Concatenate per-route resampled segs into one pooled seg, shifting run_bounds offsets so the
   pooled run boundaries stay correct (run_bounds is a list, not an array, so it can't be concatenated
   blindly)."""
   arr_keys = [k for k in segs[0] if k != "run_bounds"]
-  pooled = {k: np.concatenate([s[k] for s in segs]) for k in arr_keys}
+  pooled: dict[str, Any] = {k: np.concatenate([s[k] for s in segs]) for k in arr_keys}
   bounds, off = [], 0
   for s in segs:
     for a, b in s.get("run_bounds", []):
@@ -563,6 +567,11 @@ def main():
       print(f"        split-half J (TLS): {c1[0]:.4f} | {c2[0]:.4f}  (consistency check)")
     if best is None:
       best = prep
+
+  # `best` is set on the first RC iteration, so this only trips when the RC sweep was empty
+  # (`--rc` passed with no values); without it the None subscript below is a bare TypeError.
+  if best is None:
+    raise SystemExit("no fit was run: --rc was given with no values (need at least one alpha LPF RC)")
 
   banner("RECOMMENDATION")
   J = best["J"]

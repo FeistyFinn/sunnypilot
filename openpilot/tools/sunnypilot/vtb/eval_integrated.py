@@ -18,8 +18,8 @@ fire on this drive) is reported distinctly from "misbehaved" so absence isn't re
 Offline only (reads pulled rlogs on the Mac). Reuses logio.resolve_segments + LogReader, matching
 the conventions of the sibling analyzers (bootstrap block, --routes CLI, per-route text + verdict).
 
-  .venv/bin/python tools/sunnypilot/vtb/eval_integrated.py --routes <route>     # one or more routes
-  .venv/bin/python tools/sunnypilot/vtb/eval_integrated.py                      # all local routes
+  .venv/bin/python openpilot/tools/sunnypilot/vtb/eval_integrated.py --routes <route>     # one or more routes
+  .venv/bin/python openpilot/tools/sunnypilot/vtb/eval_integrated.py                      # all local routes
 """
 import argparse
 import os

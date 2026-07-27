@@ -1,4 +1,4 @@
-"""Tests for the shared VTB log-parse + signal-cache layer (tools/sunnypilot/vtb/logio.py).
+"""Tests for the shared VTB log-parse + signal-cache layer (openpilot/tools/sunnypilot/vtb/logio.py).
 
 Unlike test_fit_steer_inertia.py (which mocks at the numpy-dict level), these exercise the real
 rlog -> arrays path: a synthetic rlog is built with save_log()/new_message() and read back through
@@ -9,7 +9,7 @@ import os
 import numpy as np
 import pytest
 
-from cereal import messaging
+from openpilot.cereal import messaging
 from openpilot.tools.lib.logreader import save_log
 from openpilot.tools.sunnypilot.vtb import logio
 from openpilot.tools.sunnypilot.vtb import fit_steer_inertia as fit

@@ -10,8 +10,8 @@ J can be trusted from the data at all -- or whether to set J physically and tune
 It is read-only and offline; it reuses fit_steer_inertia's loaders/masks verbatim so the qualifying
 count here equals the fit's n_id exactly.
 
-  python tools/sunnypilot/vtb/diagnose_inertia_id.py                       # all local drives
-  python tools/sunnypilot/vtb/diagnose_inertia_id.py --routes ROUTE_ID ROUTE_ID
+  python openpilot/tools/sunnypilot/vtb/diagnose_inertia_id.py                       # all local drives
+  python openpilot/tools/sunnypilot/vtb/diagnose_inertia_id.py --routes ROUTE_ID ROUTE_ID
 """
 from __future__ import annotations
 

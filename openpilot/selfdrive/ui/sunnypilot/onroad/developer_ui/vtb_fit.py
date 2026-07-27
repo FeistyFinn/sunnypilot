@@ -7,7 +7,7 @@ See the LICENSE.md file in the root directory for more details.
 Pure (GL-free) helpers for the VTB inertia-comp fit-readiness Developer UI readout.
 Kept free of pyray / ui_state so the logic is unit-testable without a display context.
 
-Thresholds mirror tools/sunnypilot/vtb/fit_steer_inertia.py so the live meter matches what the
+Thresholds mirror openpilot/tools/sunnypilot/vtb/fit_steer_inertia.py so the live meter matches what the
 offline system-ID fit will actually accept. Keep these in sync if the fit/algorithm retune.
 """
 

@@ -42,7 +42,9 @@ def main(seg_paths):
             break
       elif w == "carState":
         sft = msg.carState.steerFaultTemporary
-        if in_win(rt) and hol is not None:
+        # hol and tbt are only ever assigned together (same 0x370 frame), so the tbt check is
+        # redundant at runtime -- it is here so the |tbt| arithmetic below is provably not-None.
+        if in_win(rt) and hol is not None and tbt is not None:
           diseng = (hol >= 3) or (abs(tbt) > DISENGAGE_TORQUE)
           trig = []
           if hol >= 3:

@@ -216,7 +216,9 @@ def _write_cache(rlog: str, flat: dict[str, np.ndarray]) -> None:
           "keys": sorted(merged), "dtypes": {k: merged[k].dtype.name for k in merged}}
   npz_tmp = npzp + ".tmp"
   with open(npz_tmp, "wb") as f:            # file object -> np.savez won't append ".npz"
-    np.savez(f, **merged)
+    # ty flags **merged against savez's keyword-only `allow_pickle: bool`; every key here is a
+    # "<service>~<field>" signal name, so it can never collide with that parameter.
+    np.savez(f, **merged)  # ty: ignore[invalid-argument-type]
   os.replace(npz_tmp, npzp)
   meta_tmp = mp + ".tmp"
   with open(meta_tmp, "w") as f:
